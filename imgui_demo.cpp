@@ -293,7 +293,7 @@ void ImGui::ShowDemoWindow(bool* p_open)
     if (show_app_custom_rendering)    ShowExampleAppCustomRendering(&show_app_custom_rendering);
 
     // Dear ImGui Tools/Apps (accessible from the "Tools" menu)
-    static bool show_app_metrics = false;
+    static bool show_app_metrics = true;
     static bool show_app_debug_log = false;
     static bool show_app_stack_tool = false;
     static bool show_app_about = false;

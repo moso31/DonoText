@@ -37,9 +37,8 @@ public:
     void ClearSelection();
 
 private:
-    void Render_MainText(const std::string& strLine);
     void Render_Selection();
-    void Render_LineNumber();
+    void Render_TextContent();
 
 private:
     void HandleInputs();
@@ -57,8 +56,13 @@ private:
     // 文本的起始像素位置
     float m_lineTextStartX;
 
+    // 单个字符的大小
     float m_charWidth;
     float m_charHeight;
+
+    // 滚动条
+    float m_scrollX;
+    float m_scrollY;
 
     std::unordered_map<Coordinate, int, CoordinateHash> m_selection;
 };

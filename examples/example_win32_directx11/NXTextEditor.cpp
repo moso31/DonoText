@@ -39,58 +39,12 @@ void NXTextEditor::Render()
 
     //ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
     auto& style = ImGui::GetStyle();
-	ImGui::BeginChild("TextEditor", ImVec2(0, 0), false, ImGuiWindowFlags_HorizontalScrollbar | ImGuiWindowFlags_NoMove);
-
-    if (ImGui::IsWindowHovered())
-    {
-        HandleInputs();
-    }
-
-    const auto& drawList = ImGui::GetWindowDrawList();
-	size_t strLineSize = std::to_string(m_lines.size()).length();
-
-    float scrollX = ImGui::GetScrollX();
-    float scrollY = ImGui::GetScrollY();
+	ImGui::BeginChild("TextEditor", ImVec2(0, 0), false, ImGuiWindowFlags_NoMove);
 
     ImGui::SetCursorPos(ImVec2(0.0f, 0.0f));
     Render_Selection();
 
-    float fTextLineHeight = ImGui::GetTextLineHeightWithSpacing();
-
-    // 左上角位置（绘制起始点）
-    ImVec2 windowPos = ImGui::GetWindowPos();
-
-    // 逐行扫描
-	for (int i = 0; i < m_lines.size(); i++)
-	{
-        float fLineOffsetY = i * fTextLineHeight; // 行偏移量
-
-        // 获得当前行的实际像素位置（起始点）
-        ImVec2 lineNumberStartPos(windowPos.x, windowPos.y + fLineOffsetY - scrollY);
-        
-        // 获得当前行的实际像素位置（结束点）
-        // 长度 = 行号宽度 + 两侧各 4px 空白
-        // 高度 = 行高（with spacing)
-        ImVec2 lineNumberEndPos(lineNumberStartPos.x + m_lineNumberWidth + m_lineNumberPaddingX * 2.0f, lineNumberStartPos.y + m_charHeight);
-
-        // 2023.7.4 use Begin/EndChild to make sure Rect layer always upper than MainText layer.
-        ImGui::BeginChild("##LineNumberBg", ImVec2(), false, ImGuiWindowFlags_NoScrollbar);
-        ImGui::SetWindowPos(windowPos);
-        drawList->AddRectFilled(lineNumberStartPos, lineNumberEndPos, IM_COL32(100, 100, 0, 255));
-        ImGui::EndChild();
-
-        // 把实际的行号写上去，记得考虑 m_lineNumberPaddingX
-        ImGui::SetCursorPos(ImVec2(m_lineNumberPaddingX, i * fTextLineHeight));
-        std::string strLineNumber = std::to_string(i);
-        while (strLineNumber.size() < strLineSize)
-            strLineNumber = " " + strLineNumber;
-        ImGui::TextUnformatted(strLineNumber.c_str());
-
-        // 然后在行号右侧写实际的文本
-        // 使用 m_lineTextStartX，这样可以在 行号矩形 - 文本 之间留一个4px的空
-        ImGui::SetCursorPos(ImVec2(m_lineTextStartX, i * fTextLineHeight));
-        Render_MainText(m_lines[i]);
-	}
+    Render_TextContent();
 
 	ImGui::EndChild();
 	ImGui::PopID();
@@ -111,28 +65,21 @@ void NXTextEditor::ClearSelection()
     m_selection.clear();
 }
 
-void NXTextEditor::Render_MainText(const std::string& strLine)
-{
-    ImGui::TextUnformatted(strLine.c_str());
-}
-
 void NXTextEditor::Render_Selection()
 {
     // 左上角位置（绘制起始点）
     const ImVec2& windowPos = ImGui::GetWindowPos();
-    const auto& drawList = ImGui::GetWindowDrawList();
-    float scrollX = ImGui::GetScrollX();
-    float scrollY = ImGui::GetScrollY();
 
-    ImGui::BeginChild("selection");
-    ImGui::SetWindowPos(windowPos);
+    ImGui::SetNextWindowPos(windowPos);
+    ImGui::BeginChild("##selection");
+    const auto& drawList = ImGui::GetWindowDrawList();
     for (const auto& [selectPos, selectLength] : m_selection)
     {
         // 行首坐标
-        const ImVec2 linePos(windowPos.x + m_lineTextStartX, windowPos.y + m_charHeight * selectPos.row - scrollY);
+        const ImVec2 linePos(windowPos.x + m_lineTextStartX, windowPos.y + m_charHeight * selectPos.row - m_scrollY);
 
         // 绘制所选对象的选中状态矩形
-        const ImVec2 selectStartPos(linePos.x + selectPos.col * m_charWidth - scrollX, linePos.y);
+        const ImVec2 selectStartPos(linePos.x + selectPos.col * m_charWidth - m_scrollX, linePos.y);
         const ImVec2 selectEndPos(selectStartPos.x + m_charWidth * selectLength, selectStartPos.y + m_charHeight);
         drawList->AddRectFilled(selectStartPos, selectEndPos, IM_COL32(100, 100, 0, 255));
     }
@@ -140,15 +87,61 @@ void NXTextEditor::Render_Selection()
     ImGui::EndChild();
 }
 
-void NXTextEditor::Render_LineNumber()
+void NXTextEditor::Render_TextContent()
 {
+    size_t strLineSize = std::to_string(m_lines.size()).length();
+
+    // 左上角位置（绘制起始点）
+    ImVec2 windowPos = ImGui::GetWindowPos();
+    ImVec2 windowSize = ImGui::GetWindowSize();
+    ImGui::SetNextWindowPos(windowPos);
+    ImGui::BeginChild("##main_content", windowSize, false, ImGuiWindowFlags_HorizontalScrollbar);
+
+    // 获取 ##main_content 的滚动条
+    m_scrollX = ImGui::GetScrollX();
+    m_scrollY = ImGui::GetScrollY();
+
+    if (ImGui::IsWindowHovered())
+    {
+        HandleInputs();
+    }
+
+    // 逐行扫描
+    for (int i = 0; i < m_lines.size(); i++)
+    {
+        float fLineOffsetY = i * m_charHeight; // 行偏移量
+
+        // 获得当前行的实际像素位置（起始点）
+        ImVec2 lineNumberStartPos(windowPos.x, windowPos.y + fLineOffsetY - m_scrollY);
+
+        // 获得当前行的实际像素位置（结束点）
+        // 长度 = 行号宽度 + 两侧各 4px 空白
+        // 高度 = 行高（with spacing)
+        ImVec2 lineNumberEndPos(lineNumberStartPos.x + m_lineNumberWidth + m_lineNumberPaddingX * 2.0f, lineNumberStartPos.y + ImGui::GetTextLineHeight());
+
+        ImGui::BeginChild("##lineNumberBg", ImVec2(m_lineNumberWidth + m_lineNumberPaddingX * 2.0f, m_lines.size() * m_charHeight), false, ImGuiWindowFlags_NoScrollbar);
+        const auto& drawList = ImGui::GetWindowDrawList();
+        drawList->AddRectFilled(lineNumberStartPos, lineNumberEndPos, IM_COL32(100, 100, 0, 255));
+
+        // 把实际的行号写上去，记得考虑 m_lineNumberPaddingX
+        ImGui::SetCursorPos(ImVec2(m_lineNumberPaddingX + m_scrollX, i * m_charHeight));
+        std::string strLineNumber = std::to_string(i);
+        while (strLineNumber.size() < strLineSize)
+            strLineNumber = " " + strLineNumber;
+        ImGui::TextUnformatted(strLineNumber.c_str());
+        ImGui::EndChild();
+
+        // 然后在行号右侧写实际的文本
+        // 使用 m_lineTextStartX，这样可以在 行号矩形 - 文本 之间留一个4px的空
+        ImGui::SetCursorPos(ImVec2(m_lineTextStartX, i * m_charHeight));
+        ImGui::TextUnformatted(m_lines[i].c_str());
+    }
+
+    ImGui::EndChild();
 }
 
 void NXTextEditor::HandleInputs()
 {
-    const auto& scrollX = ImGui::GetScrollX();
-    const auto& scrollY = ImGui::GetScrollY();
-
     ImGuiIO& io = ImGui::GetIO();
     {
         bool bClicked = ImGui::IsMouseClicked(ImGuiMouseButton_Left);
@@ -161,14 +154,15 @@ void NXTextEditor::HandleInputs()
             const ImVec2 relativeWindowPos(mousePos.x - windowPos.x - m_lineTextStartX, mousePos.y - windowPos.y);
 
             // 获取在整个文本显示区中的相对位置
-            const ImVec2 relativePos(scrollX + relativeWindowPos.x, scrollY + relativeWindowPos.y);
+            const ImVec2 relativePos(m_scrollX + relativeWindowPos.x, m_scrollY + relativeWindowPos.y);
 
             // 计算出行列号
             int row = relativePos.y / m_charHeight;
             int col = relativePos.x / m_charWidth;
 
             // 验证对应字符
-            //if (col < m_lines[row].size()) std::cout << m_lines[row][col];
+            if (col < m_lines[row].size())
+                std::cout << m_lines[row][col];
 
             ClearSelection();
         }
@@ -180,7 +174,7 @@ void NXTextEditor::HandleInputs()
             const ImVec2 relativeWindowPos(mousePos.x - windowPos.x - m_lineTextStartX, mousePos.y - windowPos.y);
 
             // 获取在整个文本显示区中的相对位置
-            const ImVec2 relativePos(scrollX + relativeWindowPos.x, scrollY + relativeWindowPos.y);
+            const ImVec2 relativePos(m_scrollX + relativeWindowPos.x, m_scrollY + relativeWindowPos.y);
 
             // 计算出行列号
             int row = relativePos.y / m_charHeight;
