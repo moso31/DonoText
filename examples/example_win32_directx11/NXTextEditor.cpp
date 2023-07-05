@@ -5,8 +5,8 @@
 NXTextEditor::NXTextEditor()
 {
 	// 逐行读取某个文件的文本信息 
-	//std::ifstream file("..\\..\\imgui_demo.cpp");
-    std::ifstream file("D:\\Users\\Administrator\\Source\\Repos\\DonoText\\imgui_demo.cpp");
+	std::ifstream file("..\\..\\imgui_demo.cpp");
+    //std::ifstream file("D:\\Users\\Administrator\\Source\\Repos\\DonoText\\imgui_demo.cpp");
 
 	// 逐行读取文件内容到 m_lines 
 	std::string line;
@@ -26,9 +26,11 @@ void NXTextEditor::Init()
     // 记录行号文本能达到的最大宽度
     m_lineNumberWidth = m_charWidth * std::to_string(m_lines.size()).length();
 
+    m_lineNumberWidthWithPaddingX = m_lineNumberWidth + m_lineNumberPaddingX * 2.0f;
+
     // 行号矩形 - 文本 之间留一个4px的空
     float paddingX = 4.0f;
-    m_lineTextStartX = m_lineNumberWidth + m_lineNumberPaddingX * 2.0f + paddingX;
+    m_lineTextStartX = m_lineNumberWidthWithPaddingX + paddingX;
 
     //AddSelection(20, 10, 22, 10);
     AddSelection(40, 15, 14, 10);
@@ -36,19 +38,15 @@ void NXTextEditor::Init()
 
 void NXTextEditor::Render()
 {
-	ImGui::PushID("##TextEditor");
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+    ImGui::Begin("TextEditor", (bool*)true);
 
-    //ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
-    auto& style = ImGui::GetStyle();
-	ImGui::BeginChild("TextEditor", ImVec2(0, 0), false, ImGuiWindowFlags_NoMove);
+    ImGui::BeginChild("##main_layer");
+    Render_MainLayer();
+    ImGui::EndChild();
 
-    ImGui::SetCursorPos(ImVec2(0.0f, 0.0f));
-    Render_Selection();
-
-    Render_TextContent();
-
-	ImGui::EndChild();
-	ImGui::PopID();
+    ImGui::End();
+    ImGui::PopStyleVar();
 }
 
 void NXTextEditor::AddSelection(int rowStart, int colStart, int rowEnd, int colEnd)
@@ -151,7 +149,7 @@ void NXTextEditor::Render_TextContent()
     ImVec2 windowSize = ImGui::GetWindowSize();
     ImGui::SetNextWindowPos(windowPos);
 
-    ImGui::BeginChild("##lineNumberBg", ImVec2(m_lineNumberWidth + m_lineNumberPaddingX * 2.0f, m_lines.size() * m_charHeight), false, ImGuiWindowFlags_NoScrollbar);
+    ImGui::BeginChild("##lineNumberBg", ImVec2(m_lineNumberWidthWithPaddingX, m_lines.size() * m_charHeight), false, ImGuiWindowFlags_NoScrollbar);
     const auto& drawList = ImGui::GetWindowDrawList();
     drawList->AddRectFilled(windowPos, ImVec2(windowPos.x + ImGui::GetWindowSize().x, windowPos.y + ImGui::GetWindowSize().y), IM_COL32(100, 100, 0, 255));
     ImGui::EndChild();
@@ -179,9 +177,9 @@ void NXTextEditor::Render_TextContent()
         // 获得当前行的实际像素位置（结束点）
         // 长度 = 行号宽度 + 两侧各 4px 空白
         // 高度 = 行高（with spacing)
-        ImVec2 lineNumberEndPos(lineNumberStartPos.x + m_lineNumberWidth + m_lineNumberPaddingX * 2.0f, lineNumberStartPos.y + ImGui::GetTextLineHeight());
+        ImVec2 lineNumberEndPos(lineNumberStartPos.x + m_lineNumberWidthWithPaddingX, lineNumberStartPos.y + ImGui::GetTextLineHeight());
 
-        ImGui::BeginChild("##lineNumber", ImVec2(m_lineNumberWidth + m_lineNumberPaddingX * 2.0f, m_lines.size() * m_charHeight), false, ImGuiWindowFlags_NoScrollbar);
+        ImGui::BeginChild("##lineNumber", ImVec2(m_lineNumberWidthWithPaddingX, m_lines.size() * m_charHeight), false, ImGuiWindowFlags_NoScrollbar);
         //const auto& drawList = ImGui::GetWindowDrawList();
         //drawList->AddRectFilled(lineNumberStartPos, lineNumberEndPos, IM_COL32(100, 100, 0, 255));
 
@@ -200,6 +198,44 @@ void NXTextEditor::Render_TextContent()
     }
 
     ImGui::EndChild();
+}
+
+void NXTextEditor::Render_MainLayer()
+{
+    const ImVec2& windowPos = ImGui::GetWindowPos();
+    const ImVec2& windowSize = ImGui::GetWindowSize();
+
+    ImGui::SetCursorPosX(m_lineTextStartX);
+    ImGui::BeginChild("##text_content", ImVec2(windowSize.x - m_lineTextStartX, windowSize.y), false, ImGuiWindowFlags_HorizontalScrollbar);
+    for (int i = 0; i < m_lines.size(); i++)
+    {
+        const auto& strLine = m_lines[i];
+        ImGui::TextUnformatted(strLine.c_str());
+    }
+    ImGui::EndChild();
+
+    ImGui::SetCursorPos(ImVec2(0.0f, 0.0f));
+    ImGui::BeginChild("##line_number", ImVec2(m_lineNumberWidthWithPaddingX, 0), false, ImGuiWindowFlags_NoScrollbar);
+    Render_LineNumber();
+    ImGui::EndChild();
+}
+
+void NXTextEditor::Render_LineNumber()
+{
+    const ImVec2& windowPos = ImGui::GetWindowPos();
+    const ImVec2& windowSize = ImGui::GetWindowSize();
+    const auto& drawList = ImGui::GetWindowDrawList();
+
+    drawList->AddRectFilled(windowPos, ImVec2(windowPos.x + windowSize.x, windowPos.y + windowSize.y), IM_COL32(100, 100, 0, 255));
+
+    size_t strLineSize = std::to_string(m_lines.size()).length();
+    for (int i = 0; i < m_lines.size(); i++)
+    {
+        std::string strLineNumber = std::to_string(i);
+        while (strLineNumber.size() < strLineSize)
+            strLineNumber = " " + strLineNumber;
+        ImGui::TextUnformatted(strLineNumber.c_str());
+    }
 }
 
 void NXTextEditor::HandleInputs()

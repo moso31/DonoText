@@ -41,6 +41,9 @@ private:
     void Render_Selection();
     void Render_TextContent();
 
+    void Render_MainLayer();
+    void Render_LineNumber();
+
 private:
     void HandleInputs();
 
@@ -53,6 +56,8 @@ private:
 
     // 行号矩形两侧留出 4px 的空白
     float m_lineNumberPaddingX = 4.0f;
+
+    float m_lineNumberWidthWithPaddingX;
 
     // 文本的起始像素位置
     float m_lineTextStartX;

@@ -169,7 +169,6 @@ int main(int, char**)
         //}
 
         static bool bEditor = true;
-        ImGui::Begin("Custom window", &bEditor);
         //editor.Render("eee");
 
         static bool bInit = false;
@@ -179,7 +178,6 @@ int main(int, char**)
             nxEditor.Init();
         }
         nxEditor.Render();
-        ImGui::End();
 
         // Rendering
         ImGui::Render();
