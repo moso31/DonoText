@@ -17,12 +17,12 @@ class NXTextEditor
         }
     };
 
-    struct CoordinateHash
+    // 记录单条所选文本信息，注意顺序不分前后
+    // 可能是A在B前面，也可能是B在A前面。
+    struct SelectionInfo
     {
-        std::size_t operator()(const Coordinate& key) const
-        {
-            return static_cast<uint64_t>(key.row) << 32 | key.col;
-        }
+        Coordinate A;
+        Coordinate B;
     };
 
 public:
@@ -32,7 +32,8 @@ public:
     void Init();
     void Render();
 
-    void AddSelection(int row, int col, int length);
+    void AddSelection(int rowStart, int colStart, int rowEnd, int colEnd);
+    void UpdateSelectionEnd(int rowEnd, int colEnd);
     void RemoveSelection(int row, int col);
     void ClearSelection();
 
@@ -64,5 +65,5 @@ private:
     float m_scrollX;
     float m_scrollY;
 
-    std::unordered_map<Coordinate, int, CoordinateHash> m_selection;
+    std::vector<SelectionInfo> m_selections;
 };
