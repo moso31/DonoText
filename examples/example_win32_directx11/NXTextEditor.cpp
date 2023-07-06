@@ -6,6 +6,7 @@ NXTextEditor::NXTextEditor()
 {
 	// 逐行读取某个文件的文本信息 
 	std::ifstream file("..\\..\\imgui_demo.cpp");
+	//std::ifstream file("..\\..\\license.txt");
     //std::ifstream file("D:\\Users\\Administrator\\Source\\Repos\\DonoText\\imgui_demo.cpp");
 
 	// 逐行读取文件内容到 m_lines 
@@ -38,7 +39,7 @@ void NXTextEditor::Init()
 
 void NXTextEditor::Render()
 {
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+    //ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
     ImGui::Begin("TextEditor", (bool*)true);
 
     ImGui::BeginChild("##main_layer");
@@ -46,7 +47,7 @@ void NXTextEditor::Render()
     ImGui::EndChild();
 
     ImGui::End();
-    ImGui::PopStyleVar();
+    //ImGui::PopStyleVar();
 }
 
 void NXTextEditor::AddSelection(int rowStart, int colStart, int rowEnd, int colEnd)
@@ -212,10 +213,13 @@ void NXTextEditor::Render_MainLayer()
         const auto& strLine = m_lines[i];
         ImGui::TextUnformatted(strLine.c_str());
     }
+    float scrollY_textContent = ImGui::GetScrollY();
+    float scrollBarHeight = ImGui::GetScrollMaxY() > 0.0f ? ImGui::GetStyle().ScrollbarSize : 0.0f;
     ImGui::EndChild();
 
     ImGui::SetCursorPos(ImVec2(0.0f, 0.0f));
-    ImGui::BeginChild("##line_number", ImVec2(m_lineNumberWidthWithPaddingX, 0), false, ImGuiWindowFlags_NoScrollbar);
+    ImGui::BeginChild("##line_number", ImVec2(m_lineNumberWidthWithPaddingX, windowSize.y - scrollBarHeight), false, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+    ImGui::SetScrollY(scrollY_textContent);
     Render_LineNumber();
     ImGui::EndChild();
 }
@@ -234,6 +238,8 @@ void NXTextEditor::Render_LineNumber()
         std::string strLineNumber = std::to_string(i);
         while (strLineNumber.size() < strLineSize)
             strLineNumber = " " + strLineNumber;
+
+        ImGui::SetCursorPosX(m_lineNumberPaddingX);
         ImGui::TextUnformatted(strLineNumber.c_str());
     }
 }
