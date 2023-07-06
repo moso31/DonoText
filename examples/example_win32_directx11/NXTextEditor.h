@@ -52,6 +52,7 @@ class NXTextEditor
         Coordinate L;
         Coordinate R;
         bool flickerAtFront = false;
+        bool isDraging = false;
     };
 
 public:
@@ -62,7 +63,7 @@ public:
     void Render();
 
     void AddSelection(const Coordinate& A, const Coordinate& B);
-    void UpdateLastSelection(const Coordinate& newPos);
+    void DragSelection(SelectionInfo& selection, const Coordinate& newPos);
     void RemoveSelection(int row, int col);
     void ClearSelection();
 

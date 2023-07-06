@@ -56,12 +56,8 @@ void NXTextEditor::AddSelection(const Coordinate& A, const Coordinate& B)
     else m_selections.push_back({ B, A, true });
 }
 
-void NXTextEditor::UpdateLastSelection(const Coordinate& newPos)
+void NXTextEditor::DragSelection(SelectionInfo& selection, const Coordinate& newPos)
 {
-    if (m_selections.empty())
-        return;
-
-    auto& selection = m_selections.back();
     if (newPos > selection.R)
     {
         selection.R = newPos;
@@ -218,6 +214,8 @@ void NXTextEditor::Render_LineNumber()
 
 void NXTextEditor::HandleMouseInputs_Texts()
 {
+    auto& io = ImGui::GetIO();
+
     if (ImGui::IsMouseReleased(ImGuiMouseButton_Left))
     {
         m_bIsSelecting = false;
@@ -288,7 +286,7 @@ void NXTextEditor::HandleMouseInputs_Texts()
         // test: 打印对应字符
         //if (col < m_lines[row].size()) std::cout << m_lines[row][col];
 
-        ClearSelection();
+        if (!io.KeyAlt) ClearSelection();
         AddSelection({ row, col }, { row, col });
 
         m_bIsSelecting = true;
@@ -308,7 +306,7 @@ void NXTextEditor::HandleMouseInputs_Texts()
         col = std::max(0, std::min(col, (int)m_lines[row].size()));
 
         // 添加选中
-        UpdateLastSelection({ row, col });
+        DragSelection(m_selections.back(), { row, col });
     }
 }
 
