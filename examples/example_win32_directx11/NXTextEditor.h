@@ -33,19 +33,19 @@ public:
     void Render();
 
     void AddSelection(int rowStart, int colStart, int rowEnd, int colEnd);
-    void UpdateSelectionEnd(int rowEnd, int colEnd);
+    void UpdateLastSelection(int row, int col);
     void RemoveSelection(int row, int col);
     void ClearSelection();
 
 private:
-    void Render_Selection();
-    void Render_TextContent();
-
     void Render_MainLayer();
+
+    void Render_Selections();
+    void Render_Texts();
     void Render_LineNumber();
 
 private:
-    void HandleInputs();
+    void HandleInputs_Texts();
 
 private:
     std::vector<std::string> m_lines;
@@ -65,10 +65,6 @@ private:
     // 单个字符的大小
     float m_charWidth;
     float m_charHeight;
-
-    // 滚动条
-    float m_scrollX;
-    float m_scrollY;
 
     std::vector<SelectionInfo> m_selections;
 };
