@@ -107,8 +107,11 @@ void NXTextEditor::Render_Selections()
         // 判断 A B 的前后顺序
         const Coordinate& A = selection.A;
         const Coordinate& B = selection.B;
-        const Coordinate& fromPos = A.row < B.row ? A : A.row > B.row ? B : A.col <= B.col ? A : B;
-        const Coordinate& toPos = (A.row == fromPos.row && A.col == fromPos.col) ? B : A;
+        const Coordinate& fromPos = A <= B ? A : B;
+        bool bReverseAB = A != fromPos;
+        const Coordinate& toPos = bReverseAB ? A : B;
+
+        ImVec2 flickerPos;
 
         // 判断 A B 是否在同一行
         const bool bSameLine = fromPos.row == toPos.row;
@@ -122,14 +125,13 @@ void NXTextEditor::Render_Selections()
             ImVec2 selectEndPos(linePos.x + toPos.col * m_charWidth - scrollX, linePos.y + m_charHeight);
             drawList->AddRectFilled(selectStartPos, selectEndPos, IM_COL32(100, 100, 0, 255));
 
-            // 在末尾的位置，绘制闪烁条 每秒钟闪烁一次
-            if (fmod(ImGui::GetTime(), 1.0f) > 0.5f)
-                drawList->AddLine(ImVec2(selectEndPos.x, selectStartPos.y), selectEndPos, IM_COL32(255, 255, 0, 255), 1.0f);
+            // 计算闪烁位置
+            flickerPos = bReverseAB ? selectStartPos : ImVec2(selectEndPos.x, selectEndPos.y - m_charHeight);
         }
         else
         {
             // 绘制首行，先确定首行字符长度
-            const int firstLineLength = m_lines[fromPos.row].length() - fromPos.col;
+            const int firstLineLength = m_lines[fromPos.row].length();
 
             // 行首坐标
             ImVec2 linePos(windowPos.x, windowPos.y + m_charHeight * fromPos.row - scrollY);
@@ -137,6 +139,9 @@ void NXTextEditor::Render_Selections()
             ImVec2 selectStartPos(linePos.x + fromPos.col * m_charWidth - scrollX, linePos.y);
             ImVec2 selectEndPos(linePos.x + firstLineLength * m_charWidth - scrollX, linePos.y + m_charHeight);
             drawList->AddRectFilled(selectStartPos, selectEndPos, IM_COL32(100, 100, 0, 255));
+
+            // 如果是 B在前，A在后，则在文本开始处闪烁
+            if (bReverseAB) flickerPos = selectStartPos;
 
             // 绘制中间行
             for (int i = fromPos.row + 1; i < toPos.row; ++i)
@@ -158,10 +163,13 @@ void NXTextEditor::Render_Selections()
             selectEndPos = ImVec2(linePos.x + lastLineLength * m_charWidth - scrollX, linePos.y + m_charHeight);
             drawList->AddRectFilled(selectStartPos, selectEndPos, IM_COL32(100, 100, 0, 255));
 
-            // 在末尾的位置，绘制闪烁条 每秒钟闪烁一次
-            if (fmod(ImGui::GetTime(), 1.0f) > 0.5f)
-                drawList->AddLine(ImVec2(selectEndPos.x, selectStartPos.y), selectEndPos, IM_COL32(255, 255, 0, 255), 1.0f);
+            // 如果是 A在前，B在后，则在文本末尾处闪烁
+            if (!bReverseAB) flickerPos = ImVec2(selectEndPos.x, selectEndPos.y - m_charHeight);
         }
+
+        // 绘制闪烁条 每秒钟闪烁一次
+        if (fmod(ImGui::GetTime(), 1.0f) > 0.5f)
+            drawList->AddLine(flickerPos, ImVec2(flickerPos.x, flickerPos.y + m_charHeight), IM_COL32(255, 255, 0, 255), 1.0f);
     }
 }
 

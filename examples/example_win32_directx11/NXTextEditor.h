@@ -1,4 +1,4 @@
-#pragma once
+ï»¿#pragma once
 #include <vector>
 #include <string>
 #include <unordered_map>
@@ -8,17 +8,45 @@ class NXTextEditor
 {
     struct Coordinate
     {
-        int row;
-        int col;
+        Coordinate() : row(0), col(0) {}
+        Coordinate(int r, int c) : row(r), col(c) {}
 
         bool operator==(const Coordinate& rhs) const
         {
             return row == rhs.row && col == rhs.col;
         }
+
+        bool operator!=(const Coordinate& rhs) const
+        {
+            return !(*this == rhs);
+        }
+
+        bool operator<(const Coordinate& rhs) const
+        {
+            return row < rhs.row || (row == rhs.row && col < rhs.col);
+        }
+
+        bool operator>(const Coordinate& rhs) const
+        {
+            return row > rhs.row || (row == rhs.row && col > rhs.col);
+        }
+
+        bool operator<=(const Coordinate& rhs) const
+        {
+            return *this < rhs || *this == rhs;
+        }
+
+        bool operator>=(const Coordinate& rhs) const
+        {
+            return *this > rhs || *this == rhs;
+        }
+
+        int row;
+        int col;
     };
 
-    // ¼ÇÂ¼µ¥ÌõËùÑ¡ÎÄ±¾ĞÅÏ¢£¬Ë³Ğò²»·ÖÇ°ºó
-    // ¿ÉÄÜÊÇAÔÚBÇ°Ãæ£¬Ò²¿ÉÄÜÊÇBÔÚAÇ°Ãæ¡£
+    // è®°å½•å•æ¡æ‰€é€‰æ–‡æœ¬ä¿¡æ¯ï¼Œé¡ºåºä¸åˆ†å‰å
+    // å¯èƒ½æ˜¯Aåœ¨Bå‰é¢ï¼Œä¹Ÿå¯èƒ½æ˜¯Båœ¨Aå‰é¢ã€‚
     struct SelectionInfo
     {
         Coordinate A;
@@ -52,18 +80,18 @@ private:
     std::vector<std::string> m_lines;
 
 private:
-    // ¼ÇÂ¼ĞĞºÅÎÄ±¾ÄÜ´ïµ½µÄ×î´ó¿í¶È
+    // è®°å½•è¡Œå·æ–‡æœ¬èƒ½è¾¾åˆ°çš„æœ€å¤§å®½åº¦
     float m_lineNumberWidth = 0.0f;
 
-    // ĞĞºÅ¾ØĞÎÁ½²àÁô³ö 4px µÄ¿Õ°×
+    // è¡Œå·çŸ©å½¢ä¸¤ä¾§ç•™å‡º 4px çš„ç©ºç™½
     float m_lineNumberPaddingX = 4.0f;
 
     float m_lineNumberWidthWithPaddingX;
 
-    // ÎÄ±¾µÄÆğÊ¼ÏñËØÎ»ÖÃ
+    // æ–‡æœ¬çš„èµ·å§‹åƒç´ ä½ç½®
     float m_lineTextStartX;
 
-    // µ¥¸ö×Ö·ûµÄ´óĞ¡
+    // å•ä¸ªå­—ç¬¦çš„å¤§å°
     float m_charWidth;
     float m_charHeight;
 
