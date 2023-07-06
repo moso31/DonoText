@@ -45,7 +45,8 @@ private:
     void Render_LineNumber();
 
 private:
-    void HandleInputs_Texts();
+    void HandleMouseInputs_Texts();
+    void HandleKeyInputs_Texts();
 
 private:
     std::vector<std::string> m_lines;
@@ -67,4 +68,6 @@ private:
     float m_charHeight;
 
     std::vector<SelectionInfo> m_selections;
+
+    bool m_bIsSelecting = false;
 };

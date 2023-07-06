@@ -80,7 +80,7 @@ void NXTextEditor::Render_MainLayer()
 
     ImGui::SetCursorPos(ImVec2(m_lineTextStartX, 0.0f));
     ImGui::BeginChild("##text_content", ImVec2(windowSize.x - m_lineTextStartX, windowSize.y), false, ImGuiWindowFlags_HorizontalScrollbar);
-    HandleInputs_Texts();
+    HandleMouseInputs_Texts();
     Render_Selections();
     Render_Texts();
     float scrollY_textContent = ImGui::GetScrollY();
@@ -194,20 +194,28 @@ void NXTextEditor::Render_LineNumber()
     }
 }
 
-void NXTextEditor::HandleInputs_Texts()
+void NXTextEditor::HandleMouseInputs_Texts()
 {
-    ImGuiIO& io = ImGui::GetIO();
-    bool bClicked = ImGui::IsMouseClicked(ImGuiMouseButton_Left);
-    bool bDoubleClicked = ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left);
+    if (ImGui::IsMouseReleased(ImGuiMouseButton_Left))
+    {
+        m_bIsSelecting = false;
+        return;
+    }
 
     float scrollX = ImGui::GetScrollX();
     float scrollY = ImGui::GetScrollY();
 
     const auto& mousePos = ImGui::GetMousePos();
 
+    // 获取鼠标在文本显示区中的相对位置
+    const auto& windowPos = ImGui::GetWindowPos();
+    const ImVec2 relativeWindowPos(mousePos.x - windowPos.x, mousePos.y - windowPos.y);
+    const ImVec2 relativePos(scrollX + relativeWindowPos.x, scrollY + relativeWindowPos.y);
+
     // 获取文本内容区域的矩形
-    ImVec2 contentAreaMin = ImGui::GetCursorScreenPos();
-    ImVec2 contentAreaMax(contentAreaMin.x + ImGui::GetContentRegionAvail().x, contentAreaMin.y + ImGui::GetContentRegionAvail().y);
+    const ImVec2& contentAreaMin(windowPos);
+    const ImVec2& textContentArea(ImGui::GetContentRegionAvail());
+    const ImVec2 contentAreaMax(contentAreaMin.x + textContentArea.x, contentAreaMin.y + textContentArea.y);
 
     // 检查鼠标点击是否在文本内容区域内
     bool isMouseInContentArea = mousePos.x >= contentAreaMin.x && mousePos.x <= contentAreaMax.x &&
@@ -216,12 +224,7 @@ void NXTextEditor::HandleInputs_Texts()
     if (!isMouseInContentArea)
         return;
 
-    // 获取鼠标在文本显示区中的相对位置
-    const auto& windowPos = ImGui::GetWindowPos();
-    const ImVec2 relativeWindowPos(mousePos.x - windowPos.x, mousePos.y - windowPos.y);
-    const ImVec2 relativePos(scrollX + relativeWindowPos.x, scrollY + relativeWindowPos.y);
-
-    if (bDoubleClicked)
+    if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
     {
         // 计算出行列号
         int row = relativePos.y / m_charHeight;
@@ -250,7 +253,7 @@ void NXTextEditor::HandleInputs_Texts()
             AddSelection(row, left + 1, row, right);
         }
     }
-    else if (bClicked)
+    else if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
     {
         // 计算出行列号
         int row = relativePos.y / m_charHeight;
@@ -268,11 +271,12 @@ void NXTextEditor::HandleInputs_Texts()
 
         ClearSelection();
         AddSelection(row, col, row, col);
-    }
 
-    // 处理鼠标拖拽
-    if (ImGui::IsMouseDown(ImGuiMouseButton_Left) && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
+        m_bIsSelecting = true;
+    }
+    else if (m_bIsSelecting && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
     {
+        // 处理鼠标拖拽
         // 计算出行列号
         int row = relativePos.y / m_charHeight;
         float fCol = relativePos.x / m_charWidth;
@@ -287,4 +291,8 @@ void NXTextEditor::HandleInputs_Texts()
         // 添加选中
         UpdateLastSelection(row, col);
     }
+}
+
+void NXTextEditor::HandleKeyInputs_Texts()
+{
 }
