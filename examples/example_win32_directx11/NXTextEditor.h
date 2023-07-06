@@ -17,7 +17,7 @@ class NXTextEditor
         }
     };
 
-    // 记录单条所选文本信息，注意顺序不分前后
+    // 记录单条所选文本信息，顺序不分前后
     // 可能是A在B前面，也可能是B在A前面。
     struct SelectionInfo
     {
