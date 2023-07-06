@@ -177,7 +177,7 @@ int main(int, char**)
             bInit = true;
             nxEditor.Init();
         }
-        nxEditor.Render();
+        nxEditor.Render(); 
 
         // Rendering
         ImGui::Render();
