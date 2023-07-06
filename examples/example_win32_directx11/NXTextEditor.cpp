@@ -33,8 +33,8 @@ void NXTextEditor::Init()
     float paddingX = 4.0f;
     m_lineTextStartX = m_lineNumberWidthWithPaddingX + paddingX;
 
-    AddSelection(10, 10, 10, 25);
-    AddSelection(40, 15, 14, 10);
+    AddSelection({ 10, 10 }, { 10, 25 });
+    AddSelection({ 40, 15 }, { 14, 10 });
 }
 
 void NXTextEditor::Render()
@@ -50,18 +50,28 @@ void NXTextEditor::Render()
     //ImGui::PopStyleVar();
 }
 
-void NXTextEditor::AddSelection(int rowStart, int colStart, int rowEnd, int colEnd)
+void NXTextEditor::AddSelection(const Coordinate& A, const Coordinate& B)
 {
-    m_selections.push_back({ {rowStart, colStart}, {rowEnd, colEnd} });
+    if (A < B) m_selections.push_back({ A, B, false });
+    else m_selections.push_back({ B, A, true });
 }
 
-void NXTextEditor::UpdateLastSelection(int row, int col)
+void NXTextEditor::UpdateLastSelection(const Coordinate& newPos)
 {
     if (m_selections.empty())
         return;
 
     auto& selection = m_selections.back();
-    selection.B = { row, col };
+    if (newPos > selection.R)
+    {
+        selection.R = newPos;
+        selection.flickerAtFront = false;
+    }
+    else if (newPos < selection.L)
+    {
+        selection.L = newPos;
+        selection.flickerAtFront = true;
+    }
 }
 
 void NXTextEditor::RemoveSelection(int row, int col)
@@ -73,13 +83,21 @@ void NXTextEditor::ClearSelection()
     m_selections.clear();
 }
 
+void NXTextEditor::Enter(ImWchar c)
+{
+}
+
+void NXTextEditor::Backspace()
+{
+}
+
 void NXTextEditor::Render_MainLayer()
 {
-    const ImVec2& windowPos = ImGui::GetWindowPos();
     const ImVec2& windowSize = ImGui::GetWindowSize();
 
     ImGui::SetCursorPos(ImVec2(m_lineTextStartX, 0.0f));
     ImGui::BeginChild("##text_content", ImVec2(windowSize.x - m_lineTextStartX, windowSize.y), false, ImGuiWindowFlags_HorizontalScrollbar);
+    HandleKeyInputs_Texts();
     HandleMouseInputs_Texts();
     Render_Selections();
     Render_Texts();
@@ -104,12 +122,8 @@ void NXTextEditor::Render_Selections()
 
     for (const auto& selection : m_selections)
     {
-        // 判断 A B 的前后顺序
-        const Coordinate& A = selection.A;
-        const Coordinate& B = selection.B;
-        const Coordinate& fromPos = A <= B ? A : B;
-        bool bReverseAB = A != fromPos;
-        const Coordinate& toPos = bReverseAB ? A : B;
+        const Coordinate& fromPos = selection.L;
+        const Coordinate& toPos = selection.R;
 
         ImVec2 flickerPos;
 
@@ -126,12 +140,12 @@ void NXTextEditor::Render_Selections()
             drawList->AddRectFilled(selectStartPos, selectEndPos, IM_COL32(100, 100, 0, 255));
 
             // 计算闪烁位置
-            flickerPos = bReverseAB ? selectStartPos : ImVec2(selectEndPos.x, selectEndPos.y - m_charHeight);
+            flickerPos = selection.flickerAtFront ? selectStartPos : ImVec2(selectEndPos.x, selectEndPos.y - m_charHeight);
         }
         else
         {
             // 绘制首行，先确定首行字符长度
-            const int firstLineLength = m_lines[fromPos.row].length();
+            const size_t firstLineLength = m_lines[fromPos.row].length();
 
             // 行首坐标
             ImVec2 linePos(windowPos.x, windowPos.y + m_charHeight * fromPos.row - scrollY);
@@ -141,7 +155,7 @@ void NXTextEditor::Render_Selections()
             drawList->AddRectFilled(selectStartPos, selectEndPos, IM_COL32(100, 100, 0, 255));
 
             // 如果是 B在前，A在后，则在文本开始处闪烁
-            if (bReverseAB) flickerPos = selectStartPos;
+            if (selection.flickerAtFront) flickerPos = selectStartPos;
 
             // 绘制中间行
             for (int i = fromPos.row + 1; i < toPos.row; ++i)
@@ -164,7 +178,7 @@ void NXTextEditor::Render_Selections()
             drawList->AddRectFilled(selectStartPos, selectEndPos, IM_COL32(100, 100, 0, 255));
 
             // 如果是 A在前，B在后，则在文本末尾处闪烁
-            if (!bReverseAB) flickerPos = ImVec2(selectEndPos.x, selectEndPos.y - m_charHeight);
+            if (!selection.flickerAtFront) flickerPos = ImVec2(selectEndPos.x, selectEndPos.y - m_charHeight);
         }
 
         // 绘制闪烁条 每秒钟闪烁一次
@@ -235,11 +249,11 @@ void NXTextEditor::HandleMouseInputs_Texts()
     if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
     {
         // 计算出行列号
-        int row = relativePos.y / m_charHeight;
+        int row = (int)(relativePos.y / m_charHeight);
         float fCol = relativePos.x / m_charWidth;
 
         // 手感优化：实际点击位置的 列坐标 超过当前字符的50% 时，认为是下一个字符
-        int col = fCol + 0.5f;
+        int col = (int)(fCol + 0.5f);
 
         // 约束行列号范围
         row = std::max(0, std::min(row, (int)m_lines.size() - 1));
@@ -254,21 +268,18 @@ void NXTextEditor::HandleMouseInputs_Texts()
             while (left > 0 && m_lines[row][left] != ' ' && m_lines[row][left] != '\n') left--;
             while (right < m_lines[row].size() && m_lines[row][right] != ' ' && m_lines[row][right] != '\n') right++;
 
-            // 计算出选中的长度
-            int length = right - left - 1;
-
             // 添加选中
-            AddSelection(row, left + 1, row, right);
+            AddSelection({ row, left + 1 }, { row, right });
         }
     }
     else if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
     {
         // 计算出行列号
-        int row = relativePos.y / m_charHeight;
+        int row = (int)(relativePos.y / m_charHeight);
         float fCol = relativePos.x / m_charWidth;
 
         // 手感优化：实际点击位置的 列坐标 超过当前字符的50% 时，认为是下一个字符
-        int col = fCol + 0.5f;
+        int col = (int)(fCol + 0.5f);
 
         // 约束行列号范围
         row = std::max(0, std::min(row, (int)m_lines.size() - 1));
@@ -278,7 +289,7 @@ void NXTextEditor::HandleMouseInputs_Texts()
         //if (col < m_lines[row].size()) std::cout << m_lines[row][col];
 
         ClearSelection();
-        AddSelection(row, col, row, col);
+        AddSelection({ row, col }, { row, col });
 
         m_bIsSelecting = true;
     }
@@ -286,21 +297,44 @@ void NXTextEditor::HandleMouseInputs_Texts()
     {
         // 处理鼠标拖拽
         // 计算出行列号
-        int row = relativePos.y / m_charHeight;
+        int row = (int)(relativePos.y / m_charHeight);
         float fCol = relativePos.x / m_charWidth;
 
         // 手感优化：实际点击位置的 列坐标 超过当前字符的50% 时，认为是下一个字符
-        int col = fCol + 0.5f;
+        int col = (int)(fCol + 0.5f);
 
         // 约束行列号范围
         row = std::max(0, std::min(row, (int)m_lines.size() - 1));
         col = std::max(0, std::min(col, (int)m_lines[row].size()));
 
         // 添加选中
-        UpdateLastSelection(row, col);
+        UpdateLastSelection({ row, col });
     }
 }
 
 void NXTextEditor::HandleKeyInputs_Texts()
 {
+    ImGuiIO& io = ImGui::GetIO();
+
+    if (ImGui::IsWindowFocused())
+    {
+        io.WantCaptureKeyboard = true;
+        io.WantTextInput = true;
+
+        //if (ImGui::IsKeyPressed(ImGuiKey_Backspace))
+        //    BackSpace();
+
+        if (!io.InputQueueCharacters.empty())
+        {
+            for (const auto& c : io.InputQueueCharacters)
+            {
+                if (c != 0 && (c == '\n' || c >= 32))
+                {
+                    Enter(c);
+                }
+            }
+
+            io.InputQueueCharacters.resize(0);
+        }
+    }
 }

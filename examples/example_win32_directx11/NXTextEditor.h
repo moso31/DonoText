@@ -49,8 +49,9 @@ class NXTextEditor
     // 可能是A在B前面，也可能是B在A前面。
     struct SelectionInfo
     {
-        Coordinate A;
-        Coordinate B;
+        Coordinate L;
+        Coordinate R;
+        bool flickerAtFront = false;
     };
 
 public:
@@ -60,10 +61,14 @@ public:
     void Init();
     void Render();
 
-    void AddSelection(int rowStart, int colStart, int rowEnd, int colEnd);
-    void UpdateLastSelection(int row, int col);
+    void AddSelection(const Coordinate& A, const Coordinate& B);
+    void UpdateLastSelection(const Coordinate& newPos);
     void RemoveSelection(int row, int col);
     void ClearSelection();
+
+public:
+    void Enter(ImWchar c);
+    void Backspace();
 
 private:
     void Render_MainLayer();
