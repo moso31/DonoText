@@ -52,8 +52,7 @@ void NXTextEditor::Render()
 
 void NXTextEditor::AddSelection(const Coordinate& A, const Coordinate& B)
 {
-    SelectionInfo selection = (A > B) ? SelectionInfo(B, A, true) : SelectionInfo(A, B, false);
-	SelectionsOverlayCheck(selection);
+    SelectionInfo selection(A, B);
 	m_selections.push_back(selection);
 }
 
@@ -114,77 +113,11 @@ void NXTextEditor::Render_MainLayer()
 
 void NXTextEditor::RenderSelections()
 {
-    const ImVec2& windowPos = ImGui::GetWindowPos();
-    const auto& drawList = ImGui::GetWindowDrawList();
-
-    float scrollX = ImGui::GetScrollX();
-    float scrollY = ImGui::GetScrollY();
-
     for (const auto& selection : m_selections)
-    {
-        const Coordinate& fromPos = selection.L;
-        const Coordinate& toPos = selection.R;
+        RenderSelection(selection);
 
-        ImVec2 flickerPos;
-
-        // 判断 A B 是否在同一行
-        const bool bSameLine = fromPos.row == toPos.row;
-        if (bSameLine)
-        {
-            // 行首坐标
-            ImVec2 linePos(windowPos.x, windowPos.y + m_charHeight * fromPos.row - scrollY);
-
-            // 绘制所选对象的选中状态矩形
-            ImVec2 selectStartPos(linePos.x + fromPos.col * m_charWidth - scrollX, linePos.y);
-            ImVec2 selectEndPos(linePos.x + toPos.col * m_charWidth - scrollX, linePos.y + m_charHeight);
-            drawList->AddRectFilled(selectStartPos, selectEndPos, IM_COL32(100, 100, 0, 255));
-
-            // 计算闪烁位置
-            flickerPos = selection.flickerAtFront ? selectStartPos : ImVec2(selectEndPos.x, selectEndPos.y - m_charHeight);
-        }
-        else
-        {
-            // 绘制首行，先确定首行字符长度
-            const size_t firstLineLength = m_lines[fromPos.row].length();
-
-            // 行首坐标
-            ImVec2 linePos(windowPos.x, windowPos.y + m_charHeight * fromPos.row - scrollY);
-            // 绘制所选对象的选中状态矩形
-            ImVec2 selectStartPos(linePos.x + fromPos.col * m_charWidth - scrollX, linePos.y);
-            ImVec2 selectEndPos(linePos.x + firstLineLength * m_charWidth - scrollX, linePos.y + m_charHeight);
-            drawList->AddRectFilled(selectStartPos, selectEndPos, IM_COL32(100, 100, 0, 255));
-
-            // 如果是 B在前，A在后，则在文本开始处闪烁
-            if (selection.flickerAtFront) flickerPos = selectStartPos;
-
-            // 绘制中间行
-            for (int i = fromPos.row + 1; i < toPos.row; ++i)
-            {
-                // 行首坐标
-                linePos = ImVec2(windowPos.x, windowPos.y + m_charHeight * i - scrollY);
-                // 绘制所选对象的选中状态矩形
-                selectStartPos = ImVec2(linePos.x - scrollX, linePos.y);
-                selectEndPos = ImVec2(linePos.x + m_lines[i].length() * m_charWidth - scrollX, linePos.y + m_charHeight);
-                drawList->AddRectFilled(selectStartPos, selectEndPos, IM_COL32(100, 100, 0, 255));
-            }
-
-            // 绘制尾行，先确定尾行字符长度
-            int lastLineLength = toPos.col;
-            // 行首坐标
-            linePos = ImVec2(windowPos.x, windowPos.y + m_charHeight * toPos.row - scrollY);
-            // 绘制所选对象的选中状态矩形
-            selectStartPos = ImVec2(linePos.x - scrollX, linePos.y);
-            selectEndPos = ImVec2(linePos.x + lastLineLength * m_charWidth - scrollX, linePos.y + m_charHeight);
-            drawList->AddRectFilled(selectStartPos, selectEndPos, IM_COL32(100, 100, 0, 255));
-
-            // 如果是 A在前，B在后，则在文本末尾处闪烁
-            if (!selection.flickerAtFront) flickerPos = ImVec2(selectEndPos.x, selectEndPos.y - m_charHeight);
-        }
-
-        // 绘制闪烁条 每秒钟闪烁一次
-        if (fmod(ImGui::GetTime(), 1.0f) > 0.5f)
-            drawList->AddLine(flickerPos, ImVec2(flickerPos.x, flickerPos.y + m_charHeight), IM_COL32(255, 255, 0, 255), 1.0f);
-    }
+    SelectionInfo activeSelection(m_activeSelectionDown, m_activeSelectionMove);
+    RenderSelection(activeSelection);
 }
 
 void NXTextEditor::RenderTexts()
@@ -216,10 +149,97 @@ void NXTextEditor::RenderLineNumber()
     }
 }
 
-void NXTextEditor::SelectionsOverlayCheck(const SelectionInfo& selection)
+void NXTextEditor::RenderSelection(const SelectionInfo& selection)
 {
-	// 遍历 m_selection，如果存在和 selection 有重叠的，就从vector中删除掉
-	std::erase_if(m_selections, [&selection](const SelectionInfo& sel) { return selection.Include(sel); });
+    const ImVec2& windowPos = ImGui::GetWindowPos();
+    const auto& drawList = ImGui::GetWindowDrawList();
+
+    float scrollX = ImGui::GetScrollX();
+    float scrollY = ImGui::GetScrollY();
+
+    const Coordinate& fromPos = selection.L;
+    const Coordinate& toPos = selection.R;
+
+    ImVec2 flickerPos;
+
+    // 判断 A B 是否在同一行
+    const bool bSameLine = fromPos.row == toPos.row;
+    if (bSameLine)
+    {
+        // 行首坐标
+        ImVec2 linePos(windowPos.x, windowPos.y + m_charHeight * fromPos.row - scrollY);
+
+        // 绘制所选对象的选中状态矩形
+        ImVec2 selectStartPos(linePos.x + fromPos.col * m_charWidth - scrollX, linePos.y);
+        ImVec2 selectEndPos(linePos.x + toPos.col * m_charWidth - scrollX, linePos.y + m_charHeight);
+        drawList->AddRectFilled(selectStartPos, selectEndPos, IM_COL32(100, 100, 0, 255));
+
+        // 计算闪烁位置
+        flickerPos = selection.flickerAtFront ? selectStartPos : ImVec2(selectEndPos.x, selectEndPos.y - m_charHeight);
+    }
+    else
+    {
+        // 绘制首行，先确定首行字符长度
+        const size_t firstLineLength = m_lines[fromPos.row].length();
+
+        // 行首坐标
+        ImVec2 linePos(windowPos.x, windowPos.y + m_charHeight * fromPos.row - scrollY);
+        // 绘制所选对象的选中状态矩形
+        ImVec2 selectStartPos(linePos.x + fromPos.col * m_charWidth - scrollX, linePos.y);
+        ImVec2 selectEndPos(linePos.x + firstLineLength * m_charWidth - scrollX, linePos.y + m_charHeight);
+        drawList->AddRectFilled(selectStartPos, selectEndPos, IM_COL32(100, 100, 0, 255));
+
+        // 如果是 B在前，A在后，则在文本开始处闪烁
+        if (selection.flickerAtFront) flickerPos = selectStartPos;
+
+        // 绘制中间行
+        for (int i = fromPos.row + 1; i < toPos.row; ++i)
+        {
+            // 行首坐标
+            linePos = ImVec2(windowPos.x, windowPos.y + m_charHeight * i - scrollY);
+            // 绘制所选对象的选中状态矩形
+            selectStartPos = ImVec2(linePos.x - scrollX, linePos.y);
+            selectEndPos = ImVec2(linePos.x + m_lines[i].length() * m_charWidth - scrollX, linePos.y + m_charHeight);
+            drawList->AddRectFilled(selectStartPos, selectEndPos, IM_COL32(100, 100, 0, 255));
+        }
+
+        // 绘制尾行，先确定尾行字符长度
+        int lastLineLength = toPos.col;
+        // 行首坐标
+        linePos = ImVec2(windowPos.x, windowPos.y + m_charHeight * toPos.row - scrollY);
+        // 绘制所选对象的选中状态矩形
+        selectStartPos = ImVec2(linePos.x - scrollX, linePos.y);
+        selectEndPos = ImVec2(linePos.x + lastLineLength * m_charWidth - scrollX, linePos.y + m_charHeight);
+        drawList->AddRectFilled(selectStartPos, selectEndPos, IM_COL32(100, 100, 0, 255));
+
+        // 如果是 A在前，B在后，则在文本末尾处闪烁
+        if (!selection.flickerAtFront) flickerPos = ImVec2(selectEndPos.x, selectEndPos.y - m_charHeight);
+    }
+
+    // 绘制闪烁条 每秒钟闪烁一次
+    if (fmod(ImGui::GetTime(), 1.0f) > 0.5f)
+        drawList->AddLine(flickerPos, ImVec2(flickerPos.x, flickerPos.y + m_charHeight), IM_COL32(255, 255, 0, 255), 1.0f);
+}
+
+void NXTextEditor::SelectionsOverlayCheck()
+{
+    // 检测的 m_selections 的所有元素（下面称为 selection）的覆盖范围是否和当前 { m_activeSelectionDown, m_activeSelectionMove } 重叠
+    // 1. 如果 activeSelection 、是当前 selection 的子集，则将 selection 删除，但将 activeSelectionDown 移至 selection.L
+    // 2. 如果 activeSelection 不是当前 selection 的子集，但和 selection.L 相交，即若出现
+    //      m_activeSelectionDown < selection.L < m_activeSelectionMove，
+    //      m_activeSelectionMove < selection.R < m_activeSelectionDown，
+    //      两种情况中的一个，则将 selection 删除
+
+    std::erase_if(m_selections, [this](const SelectionInfo& selection)
+        {
+            if (selection.Include(SelectionInfo(m_activeSelectionDown, m_activeSelectionMove)))
+            {
+                m_activeSelectionDown = selection.L;
+                return true;
+            }
+            else return (m_activeSelectionDown < selection.L && selection.L < m_activeSelectionMove) ||
+                (m_activeSelectionMove < selection.R && selection.R < m_activeSelectionDown);
+        });
 }
 
 void NXTextEditor::RenderTexts_OnMouseInputs()
@@ -295,6 +315,7 @@ void NXTextEditor::RenderTexts_OnMouseInputs()
 
         m_bIsSelecting = true;
 		m_activeSelectionDown = { row, col };
+        m_activeSelectionMove = { row, col };
     }
     else if (m_bIsSelecting && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
     {
@@ -311,6 +332,8 @@ void NXTextEditor::RenderTexts_OnMouseInputs()
         col = std::max(0, std::min(col, (int)m_lines[row].size()));
 
 		m_activeSelectionMove = { row, col };
+
+        SelectionsOverlayCheck();
     }
 }
 
@@ -318,14 +341,10 @@ void NXTextEditor::Render_OnMouseInputs()
 {
     if (ImGui::IsMouseReleased(ImGuiMouseButton_Left))
     {
-        Render_OnMouseLeftRelease();
-        return;
-    }
-}
+        m_bIsSelecting = false;
 
-void NXTextEditor::Render_OnMouseLeftRelease()
-{
-    m_bIsSelecting = false;
+        AddSelection(m_activeSelectionDown, m_activeSelectionMove);
+    }
 }
 
 void NXTextEditor::RenderTexts_OnKeyInputs()

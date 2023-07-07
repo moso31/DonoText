@@ -49,8 +49,9 @@ class NXTextEditor
     struct SelectionInfo
     {
         SelectionInfo() {}
-        SelectionInfo(const Coordinate& left, const Coordinate& right) : L(left), R(right) {}
-        SelectionInfo(const Coordinate& left, const Coordinate& right, bool flickerAtFront) : L(left), R(right), flickerAtFront(flickerAtFront) {}
+
+        // 自动对 A B 排序
+        SelectionInfo(const Coordinate& A, const Coordinate& B) : L(A < B ? A : B), R(A < B ? B : A), flickerAtFront(A > B) {}
 
         // 检测另一个 SelectionInfo 是否是当前 SelectionInfo 的子集
         bool Include(const SelectionInfo& selection) const
@@ -61,7 +62,7 @@ class NXTextEditor
         Coordinate L;
         Coordinate R;
         bool flickerAtFront = false;
-        bool isDraging = false;
+        bool bUnused = false;
     };
 
 public:
@@ -87,11 +88,11 @@ private:
     void RenderTexts();
     void RenderLineNumber();
 
-    void SelectionsOverlayCheck(const SelectionInfo& selection);
+    void RenderSelection(const SelectionInfo& selection);
+    void SelectionsOverlayCheck();
 
 private:
     void Render_OnMouseInputs();
-    void Render_OnMouseLeftRelease();
 
     void RenderTexts_OnMouseInputs();
     void RenderTexts_OnKeyInputs();
