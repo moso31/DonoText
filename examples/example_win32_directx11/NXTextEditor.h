@@ -1,4 +1,4 @@
-#pragma once
+ï»¿#pragma once
 #include <vector>
 #include <string>
 #include <unordered_map>
@@ -8,21 +8,60 @@ class NXTextEditor
 {
     struct Coordinate
     {
-        int row;
-        int col;
+        Coordinate() : row(0), col(0) {}
+        Coordinate(int r, int c) : row(r), col(c) {}
 
         bool operator==(const Coordinate& rhs) const
         {
             return row == rhs.row && col == rhs.col;
         }
+
+        bool operator!=(const Coordinate& rhs) const
+        {
+            return !(*this == rhs);
+        }
+
+        bool operator<(const Coordinate& rhs) const
+        {
+            return row < rhs.row || (row == rhs.row && col < rhs.col);
+        }
+
+        bool operator>(const Coordinate& rhs) const
+        {
+            return row > rhs.row || (row == rhs.row && col > rhs.col);
+        }
+
+        bool operator<=(const Coordinate& rhs) const
+        {
+            return *this < rhs || *this == rhs;
+        }
+
+        bool operator>=(const Coordinate& rhs) const
+        {
+            return *this > rhs || *this == rhs;
+        }
+
+        int row;
+        int col;
     };
 
-    // ¼ÇÂ¼µ¥ÌõËùÑ¡ÎÄ±¾ĞÅÏ¢£¬×¢ÒâË³Ğò²»·ÖÇ°ºó
-    // ¿ÉÄÜÊÇAÔÚBÇ°Ãæ£¬Ò²¿ÉÄÜÊÇBÔÚAÇ°Ãæ¡£
+    // è®°å½•å•æ¡æ‰€é€‰æ–‡æœ¬ä¿¡æ¯ from L to R
     struct SelectionInfo
     {
-        Coordinate A;
-        Coordinate B;
+        SelectionInfo() {}
+        SelectionInfo(const Coordinate& left, const Coordinate& right) : L(left), R(right) {}
+        SelectionInfo(const Coordinate& left, const Coordinate& right, bool flickerAtFront) : L(left), R(right), flickerAtFront(flickerAtFront) {}
+
+        // æ£€æµ‹å¦ä¸€ä¸ª SelectionInfo æ˜¯å¦æ˜¯å½“å‰ SelectionInfo çš„å­é›†
+        bool Include(const SelectionInfo& selection) const
+        {
+            return L <= selection.L && R >= selection.R;
+        }
+
+        Coordinate L;
+        Coordinate R;
+        bool flickerAtFront = false;
+        bool isDraging = false;
     };
 
 public:
@@ -32,43 +71,54 @@ public:
     void Init();
     void Render();
 
-    void AddSelection(int rowStart, int colStart, int rowEnd, int colEnd);
-    void UpdateSelectionEnd(int rowEnd, int colEnd);
+    void AddSelection(const Coordinate& A, const Coordinate& B);
+    void DragSelection(SelectionInfo& selection, const Coordinate& newPos);
     void RemoveSelection(int row, int col);
     void ClearSelection();
 
-private:
-    void Render_Selection();
-    void Render_TextContent();
+public:
+    void Enter(ImWchar c);
+    void Backspace();
 
+private:
     void Render_MainLayer();
-    void Render_LineNumber();
+
+    void RenderSelections();
+    void RenderTexts();
+    void RenderLineNumber();
+
+    void SelectionsOverlayCheck(const SelectionInfo& selection);
 
 private:
-    void HandleInputs();
+    void Render_OnMouseInputs();
+    void Render_OnMouseLeftRelease();
+
+    void RenderTexts_OnMouseInputs();
+    void RenderTexts_OnKeyInputs();
 
 private:
     std::vector<std::string> m_lines;
 
 private:
-    // ¼ÇÂ¼ĞĞºÅÎÄ±¾ÄÜ´ïµ½µÄ×î´ó¿í¶È
+    // è®°å½•è¡Œå·æ–‡æœ¬èƒ½è¾¾åˆ°çš„æœ€å¤§å®½åº¦
     float m_lineNumberWidth = 0.0f;
 
-    // ĞĞºÅ¾ØĞÎÁ½²àÁô³ö 4px µÄ¿Õ°×
+    // è¡Œå·çŸ©å½¢ä¸¤ä¾§ç•™å‡º 4px çš„ç©ºç™½
     float m_lineNumberPaddingX = 4.0f;
 
     float m_lineNumberWidthWithPaddingX;
 
-    // ÎÄ±¾µÄÆğÊ¼ÏñËØÎ»ÖÃ
+    // æ–‡æœ¬çš„èµ·å§‹åƒç´ ä½ç½®
     float m_lineTextStartX;
 
-    // µ¥¸ö×Ö·ûµÄ´óĞ¡
+    // å•ä¸ªå­—ç¬¦çš„å¤§å°
     float m_charWidth;
     float m_charHeight;
 
-    // ¹ö¶¯Ìõ
-    float m_scrollX;
-    float m_scrollY;
-
     std::vector<SelectionInfo> m_selections;
+
+    bool m_bIsSelecting = false;
+
+    Coordinate m_activeSelectionDown;
+    Coordinate m_activeSelectionMove;
 };
