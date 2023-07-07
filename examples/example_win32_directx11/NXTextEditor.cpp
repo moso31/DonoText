@@ -56,28 +56,13 @@ void NXTextEditor::AddSelection(const Coordinate& A, const Coordinate& B)
 	m_selections.push_back(selection);
 }
 
-void NXTextEditor::DragSelection(SelectionInfo& selection, const Coordinate& newPos)
-{
-    if (newPos > m_activeSelectionDown)
-    {
-		selection.L = m_activeSelectionDown;
-        selection.R = newPos;
-        selection.flickerAtFront = false;
-    }
-    else if (newPos < m_activeSelectionDown)
-    {
-        selection.L = newPos;
-		selection.R = m_activeSelectionDown;
-        selection.flickerAtFront = true;
-    }
-}
-
 void NXTextEditor::RemoveSelection(int row, int col)
 {
 }
 
 void NXTextEditor::ClearSelection()
 {
+    auto size = m_selections.size();
     m_selections.clear();
 }
 
@@ -221,24 +206,35 @@ void NXTextEditor::RenderSelection(const SelectionInfo& selection)
         drawList->AddLine(flickerPos, ImVec2(flickerPos.x, flickerPos.y + m_charHeight), IM_COL32(255, 255, 0, 255), 1.0f);
 }
 
-void NXTextEditor::SelectionsOverlayCheck()
+void NXTextEditor::SelectionsOverlayCheck(bool bIsAltSelection)
 {
     // 检测的 m_selections 的所有元素（下面称为 selection）的覆盖范围是否和当前 { m_activeSelectionDown, m_activeSelectionMove } 重叠
-    // 1. 如果 activeSelection 、是当前 selection 的子集，则将 selection 删除，但将 activeSelectionDown 移至 selection.L
-    // 2. 如果 activeSelection 不是当前 selection 的子集，但和 selection.L 相交，即若出现
-    //      m_activeSelectionDown < selection.L < m_activeSelectionMove，
-    //      m_activeSelectionMove < selection.R < m_activeSelectionDown，
-    //      两种情况中的一个，则将 selection 删除
+    // 1. 如果 activeSelection 是当前 selection 的父集，则将 selection 删除
+    // 2. 如果 activeSelection 是当前 selection 的子集，则将 selection 删除，但将 activeSelectionDown 移至 selection.L
+    // 3. 如果 activeSelection 不是 selection 的子集，但和 selection.L 相交，则将 selection 删除；如果是双击事件Check，将 activeSelectionDown 移至 selection.R
+    // 4. 如果 activeSelection 不是 selection 的子集，但和 selection.R 相交，则将 selection 删除；如果是双击事件Check，将 activeSelectionMove 移至 selection.L
 
-    std::erase_if(m_selections, [this](const SelectionInfo& selection)
+    std::erase_if(m_selections, [this, bIsAltSelection](const SelectionInfo& selection)
         {
-            if (selection.Include(SelectionInfo(m_activeSelectionDown, m_activeSelectionMove)))
+            SelectionInfo activeSelection(m_activeSelectionDown, m_activeSelectionMove);
+            if (activeSelection.Include(selection)) // rule 1. 
+                return true;
+            else if (selection.Include(activeSelection)) // rule 2.
             {
                 m_activeSelectionDown = selection.L;
                 return true;
             }
-            else return (m_activeSelectionDown < selection.L && selection.L < m_activeSelectionMove) ||
-                (m_activeSelectionMove < selection.R && selection.R < m_activeSelectionDown);
+            else if (activeSelection.Include(selection.L)) // rule 3.
+            {
+                if (bIsAltSelection) m_activeSelectionMove = selection.R;
+                return true;
+            }
+            else if (activeSelection.Include(selection.R)) // rule 4.
+            {
+                if (bIsAltSelection) m_activeSelectionDown = selection.L;
+                return true;
+            }
+            return false;
         });
 }
 
@@ -291,7 +287,11 @@ void NXTextEditor::RenderTexts_OnMouseInputs()
             while (right < m_lines[row].size() && m_lines[row][right] != ' ' && m_lines[row][right] != '\n') right++;
 
             if (!io.KeyAlt) ClearSelection();
-            AddSelection({ row, left + 1 }, { row, right });
+
+            m_bIsSelecting = true;
+            m_activeSelectionDown = { row, left + 1 };
+            m_activeSelectionMove = { row, right };
+            SelectionsOverlayCheck(true);
         }
     }
     else if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
@@ -311,13 +311,24 @@ void NXTextEditor::RenderTexts_OnMouseInputs()
         //if (col < m_lines[row].size()) std::cout << m_lines[row][col];
 
         if (!io.KeyAlt) ClearSelection();
-        AddSelection({ row, col }, { row, col });
 
         m_bIsSelecting = true;
-		m_activeSelectionDown = { row, col };
-        m_activeSelectionMove = { row, col };
+        for (const auto& selection : m_selections)
+        {
+            if (selection.Include({ row, col }))
+            {
+                m_bIsSelecting = false;
+                break;
+            }
+        }
+
+        if (m_bIsSelecting)
+        {
+            m_activeSelectionDown = { row, col };
+            m_activeSelectionMove = { row, col };
+        }
     }
-    else if (m_bIsSelecting && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
+    else if (ImGui::IsMouseDragging(ImGuiMouseButton_Left))
     {
         // 处理鼠标拖拽
         // 计算出行列号
@@ -331,18 +342,17 @@ void NXTextEditor::RenderTexts_OnMouseInputs()
         row = std::max(0, std::min(row, (int)m_lines.size() - 1));
         col = std::max(0, std::min(col, (int)m_lines[row].size()));
 
+        m_bIsSelecting = true;
 		m_activeSelectionMove = { row, col };
-
-        SelectionsOverlayCheck();
+        SelectionsOverlayCheck(false);
     }
 }
 
 void NXTextEditor::Render_OnMouseInputs()
 {
-    if (ImGui::IsMouseReleased(ImGuiMouseButton_Left))
+    if (m_bIsSelecting && ImGui::IsMouseReleased(ImGuiMouseButton_Left))
     {
         m_bIsSelecting = false;
-
         AddSelection(m_activeSelectionDown, m_activeSelectionMove);
     }
 }

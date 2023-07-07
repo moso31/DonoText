@@ -59,6 +59,12 @@ class NXTextEditor
             return L <= selection.L && R >= selection.R;
         }
 
+        // 检测 Coordinate 是否在当前 SelectionInfo 内
+        bool Include(const Coordinate& X) const
+        {
+            return L <= X && R >= X;
+        }
+
         Coordinate L;
         Coordinate R;
         bool flickerAtFront = false;
@@ -73,7 +79,6 @@ public:
     void Render();
 
     void AddSelection(const Coordinate& A, const Coordinate& B);
-    void DragSelection(SelectionInfo& selection, const Coordinate& newPos);
     void RemoveSelection(int row, int col);
     void ClearSelection();
 
@@ -89,7 +94,7 @@ private:
     void RenderLineNumber();
 
     void RenderSelection(const SelectionInfo& selection);
-    void SelectionsOverlayCheck();
+    void SelectionsOverlayCheck(bool bIsAltSelection);
 
 private:
     void Render_OnMouseInputs();
