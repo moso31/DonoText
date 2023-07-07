@@ -45,10 +45,19 @@ class NXTextEditor
         int col;
     };
 
-    // 记录单条所选文本信息，顺序不分前后
-    // 可能是A在B前面，也可能是B在A前面。
+    // 记录单条所选文本信息 from L to R
     struct SelectionInfo
     {
+        SelectionInfo() {}
+        SelectionInfo(const Coordinate& left, const Coordinate& right) : L(left), R(right) {}
+        SelectionInfo(const Coordinate& left, const Coordinate& right, bool flickerAtFront) : L(left), R(right), flickerAtFront(flickerAtFront) {}
+
+        // 检测另一个 SelectionInfo 是否是当前 SelectionInfo 的子集
+        bool Include(const SelectionInfo& selection) const
+        {
+            return L <= selection.L && R >= selection.R;
+        }
+
         Coordinate L;
         Coordinate R;
         bool flickerAtFront = false;
@@ -74,13 +83,18 @@ public:
 private:
     void Render_MainLayer();
 
-    void Render_Selections();
-    void Render_Texts();
-    void Render_LineNumber();
+    void RenderSelections();
+    void RenderTexts();
+    void RenderLineNumber();
+
+    void SelectionsOverlayCheck(const SelectionInfo& selection);
 
 private:
-    void HandleMouseInputs_Texts();
-    void HandleKeyInputs_Texts();
+    void Render_OnMouseInputs();
+    void Render_OnMouseLeftRelease();
+
+    void RenderTexts_OnMouseInputs();
+    void RenderTexts_OnKeyInputs();
 
 private:
     std::vector<std::string> m_lines;
@@ -104,4 +118,7 @@ private:
     std::vector<SelectionInfo> m_selections;
 
     bool m_bIsSelecting = false;
+
+    Coordinate m_activeSelectionDown;
+    Coordinate m_activeSelectionMove;
 };

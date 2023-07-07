@@ -52,20 +52,23 @@ void NXTextEditor::Render()
 
 void NXTextEditor::AddSelection(const Coordinate& A, const Coordinate& B)
 {
-    if (A < B) m_selections.push_back({ A, B, false });
-    else m_selections.push_back({ B, A, true });
+    SelectionInfo selection = (A > B) ? SelectionInfo(B, A, true) : SelectionInfo(A, B, false);
+	SelectionsOverlayCheck(selection);
+	m_selections.push_back(selection);
 }
 
 void NXTextEditor::DragSelection(SelectionInfo& selection, const Coordinate& newPos)
 {
-    if (newPos > selection.R)
+    if (newPos > m_activeSelectionDown)
     {
+		selection.L = m_activeSelectionDown;
         selection.R = newPos;
         selection.flickerAtFront = false;
     }
-    else if (newPos < selection.L)
+    else if (newPos < m_activeSelectionDown)
     {
         selection.L = newPos;
+		selection.R = m_activeSelectionDown;
         selection.flickerAtFront = true;
     }
 }
@@ -90,13 +93,14 @@ void NXTextEditor::Backspace()
 void NXTextEditor::Render_MainLayer()
 {
     const ImVec2& windowSize = ImGui::GetWindowSize();
+    Render_OnMouseInputs();
 
     ImGui::SetCursorPos(ImVec2(m_lineTextStartX, 0.0f));
     ImGui::BeginChild("##text_content", ImVec2(windowSize.x - m_lineTextStartX, windowSize.y), false, ImGuiWindowFlags_HorizontalScrollbar);
-    HandleKeyInputs_Texts();
-    HandleMouseInputs_Texts();
-    Render_Selections();
-    Render_Texts();
+    RenderTexts_OnKeyInputs();
+    RenderTexts_OnMouseInputs();
+    RenderSelections();
+    RenderTexts();
     float scrollY_textContent = ImGui::GetScrollY();
     float scrollBarHeight = ImGui::GetScrollMaxY() > 0.0f ? ImGui::GetStyle().ScrollbarSize : 0.0f;
     ImGui::EndChild();
@@ -104,11 +108,11 @@ void NXTextEditor::Render_MainLayer()
     ImGui::SetCursorPos(ImVec2(0.0f, 0.0f));
     ImGui::BeginChild("##line_number", ImVec2(m_lineNumberWidthWithPaddingX, windowSize.y - scrollBarHeight), false, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
     ImGui::SetScrollY(scrollY_textContent);
-    Render_LineNumber();
+    RenderLineNumber();
     ImGui::EndChild();
 }
 
-void NXTextEditor::Render_Selections()
+void NXTextEditor::RenderSelections()
 {
     const ImVec2& windowPos = ImGui::GetWindowPos();
     const auto& drawList = ImGui::GetWindowDrawList();
@@ -183,7 +187,7 @@ void NXTextEditor::Render_Selections()
     }
 }
 
-void NXTextEditor::Render_Texts()
+void NXTextEditor::RenderTexts()
 {
     for (int i = 0; i < m_lines.size(); i++)
     {
@@ -192,7 +196,7 @@ void NXTextEditor::Render_Texts()
     }
 }
 
-void NXTextEditor::Render_LineNumber()
+void NXTextEditor::RenderLineNumber()
 {
     const ImVec2& windowPos = ImGui::GetWindowPos();
     const ImVec2& windowSize = ImGui::GetWindowSize();
@@ -212,15 +216,15 @@ void NXTextEditor::Render_LineNumber()
     }
 }
 
-void NXTextEditor::HandleMouseInputs_Texts()
+void NXTextEditor::SelectionsOverlayCheck(const SelectionInfo& selection)
+{
+	// 遍历 m_selection，如果存在和 selection 有重叠的，就从vector中删除掉
+	std::erase_if(m_selections, [&selection](const SelectionInfo& sel) { return selection.Include(sel); });
+}
+
+void NXTextEditor::RenderTexts_OnMouseInputs()
 {
     auto& io = ImGui::GetIO();
-
-    if (ImGui::IsMouseReleased(ImGuiMouseButton_Left))
-    {
-        m_bIsSelecting = false;
-        return;
-    }
 
     float scrollX = ImGui::GetScrollX();
     float scrollY = ImGui::GetScrollY();
@@ -266,7 +270,7 @@ void NXTextEditor::HandleMouseInputs_Texts()
             while (left > 0 && m_lines[row][left] != ' ' && m_lines[row][left] != '\n') left--;
             while (right < m_lines[row].size() && m_lines[row][right] != ' ' && m_lines[row][right] != '\n') right++;
 
-            // 添加选中
+            if (!io.KeyAlt) ClearSelection();
             AddSelection({ row, left + 1 }, { row, right });
         }
     }
@@ -290,6 +294,7 @@ void NXTextEditor::HandleMouseInputs_Texts()
         AddSelection({ row, col }, { row, col });
 
         m_bIsSelecting = true;
+		m_activeSelectionDown = { row, col };
     }
     else if (m_bIsSelecting && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
     {
@@ -305,12 +310,25 @@ void NXTextEditor::HandleMouseInputs_Texts()
         row = std::max(0, std::min(row, (int)m_lines.size() - 1));
         col = std::max(0, std::min(col, (int)m_lines[row].size()));
 
-        // 添加选中
-        DragSelection(m_selections.back(), { row, col });
+		m_activeSelectionMove = { row, col };
     }
 }
 
-void NXTextEditor::HandleKeyInputs_Texts()
+void NXTextEditor::Render_OnMouseInputs()
+{
+    if (ImGui::IsMouseReleased(ImGuiMouseButton_Left))
+    {
+        Render_OnMouseLeftRelease();
+        return;
+    }
+}
+
+void NXTextEditor::Render_OnMouseLeftRelease()
+{
+    m_bIsSelecting = false;
+}
+
+void NXTextEditor::RenderTexts_OnKeyInputs()
 {
     ImGuiIO& io = ImGui::GetIO();
 
