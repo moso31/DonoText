@@ -56,8 +56,9 @@ void NXTextEditor::AddSelection(const Coordinate& A, const Coordinate& B)
 	m_selections.push_back(selection);
 }
 
-void NXTextEditor::RemoveSelection(int row, int col)
+void NXTextEditor::RemoveSelection(const SelectionInfo& removeSelection)
 {
+    std::erase_if(m_selections, [&removeSelection](const SelectionInfo& selection) { return removeSelection == selection; });
 }
 
 void NXTextEditor::ClearSelection()
@@ -101,8 +102,11 @@ void NXTextEditor::RenderSelections()
     for (const auto& selection : m_selections)
         RenderSelection(selection);
 
-    SelectionInfo activeSelection(m_activeSelectionDown, m_activeSelectionMove);
-    RenderSelection(activeSelection);
+    if ()
+    {
+        SelectionInfo activeSelection(m_activeSelectionDown, m_activeSelectionMove);
+        RenderSelection(activeSelection);
+    }
 }
 
 void NXTextEditor::RenderTexts()
@@ -315,9 +319,11 @@ void NXTextEditor::RenderTexts_OnMouseInputs()
         m_bIsSelecting = true;
         for (const auto& selection : m_selections)
         {
-            if (selection.Include({ row, col }))
+            const Coordinate& pos = { row, col };
+            if (selection.Include(pos))
             {
                 m_bIsSelecting = false;
+				if (selection == pos) RemoveSelection(selection);
                 break;
             }
         }
@@ -360,14 +366,18 @@ void NXTextEditor::Render_OnMouseInputs()
 void NXTextEditor::RenderTexts_OnKeyInputs()
 {
     ImGuiIO& io = ImGui::GetIO();
+	bool bAlt = io.KeyAlt;
+	bool bShift = io.KeyShift;
+	bool bCtrl = io.KeyCtrl;
+	bool bModify = bAlt || bShift || bCtrl;
 
     if (ImGui::IsWindowFocused())
     {
         io.WantCaptureKeyboard = true;
         io.WantTextInput = true;
 
-        //if (ImGui::IsKeyPressed(ImGuiKey_Backspace))
-        //    BackSpace();
+		//if (!bModify && ImGui::IsKeyPressed(ImGuiKey_UpArrow))
+			//Do;
 
         if (!io.InputQueueCharacters.empty())
         {
