@@ -500,15 +500,15 @@ void NXTextEditor::RenderTexts_OnKeyInputs()
             m_bResetFlickerDt = true;
         }
 
-        else if (!bAlt && !bCtrl && ImGui::IsKeyPressed(ImGuiKey_LeftArrow))
+        else if (!bAlt && ImGui::IsKeyPressed(ImGuiKey_LeftArrow))
         {
-            MoveLeft(bShift);
+            MoveLeft(bShift, bCtrl);
             m_bResetFlickerDt = true;
         }
 
-        else if (!bAlt && !bCtrl && ImGui::IsKeyPressed(ImGuiKey_RightArrow))
+        else if (!bAlt && ImGui::IsKeyPressed(ImGuiKey_RightArrow))
         {
-            MoveRight(bShift);
+            MoveRight(bShift, bCtrl);
             m_bResetFlickerDt = true;
         }
 
@@ -572,18 +572,22 @@ void NXTextEditor::MoveDown(bool bShift)
     }
 }
 
-void NXTextEditor::MoveLeft(bool bShift)
+void NXTextEditor::MoveLeft(bool bShift, bool bCtrl)
 {
     for (auto& sel : m_selections)
     {
         auto& pos = sel.flickerAtFront ? sel.L : sel.R;
         pos.col = std::min(pos.col, (int)m_lines[pos.row].size());
         if (pos.col > 0)
+        {
             pos.col--;
+            if (bCtrl) while (pos.col > 0 && IsCtrlSkipable(m_lines[pos.row][pos.col])) pos.col--;
+        }
         else if (pos.row > 0)
         {
             pos.row--;
             pos.col = (int)m_lines[pos.row].size();
+            if (bCtrl) while (pos.col > 0 && IsCtrlSkipable(m_lines[pos.row][pos.col])) pos.col--;
         }
 
         if (!bShift)
@@ -593,17 +597,22 @@ void NXTextEditor::MoveLeft(bool bShift)
     }
 }
 
-void NXTextEditor::MoveRight(bool bShift)
+void NXTextEditor::MoveRight(bool bShift, bool bCtrl)
 {
     for (auto& sel : m_selections)
     {
         auto& pos = sel.flickerAtFront ? sel.L : sel.R;
         pos.col = std::min(pos.col, (int)m_lines[pos.row].size());
-        if (pos.col < m_lines[pos.row].size()) pos.col++;
+        if (pos.col < m_lines[pos.row].size())
+        {
+            pos.col++;
+            if (bCtrl) while (pos.col < m_lines[pos.row].size() && IsCtrlSkipable(m_lines[pos.row][pos.col])) pos.col++;
+        }
         else if (pos.row < m_lines.size() - 1)
         {
             pos.row++;
             pos.col = 0;
+            if (bCtrl) while (pos.col < m_lines[pos.row].size() && IsCtrlSkipable(m_lines[pos.row][pos.col])) pos.col++;
         }
 
         if (!bShift)
@@ -611,4 +620,10 @@ void NXTextEditor::MoveRight(bool bShift)
         else
             SelectionsOverlayCheckForKeyEvent(false);
     }
+}
+
+bool NXTextEditor::IsCtrlSkipable(const char& ch)
+{
+    // ctrl+left/right 可以跳过的字符：
+    return ch != ' ' && ch != '\t';
 }

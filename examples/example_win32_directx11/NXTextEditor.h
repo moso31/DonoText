@@ -129,8 +129,10 @@ private:
 
     void MoveUp(bool bShift);
     void MoveDown(bool bShift);
-    void MoveLeft(bool bShift);
-    void MoveRight(bool bShift);
+    void MoveLeft(bool bShift, bool bCtrl);
+    void MoveRight(bool bShift, bool bCtrl);
+
+    bool IsCtrlSkipable(const char& ch);
 
 private:
     std::vector<std::string> m_lines;
