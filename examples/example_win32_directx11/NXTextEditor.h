@@ -78,7 +78,6 @@ class NXTextEditor
         Coordinate L;
         Coordinate R;
         bool flickerAtFront = false;
-        bool bUnused = false;
     };
 
 public:
@@ -113,6 +112,15 @@ private:
     void RenderTexts_OnMouseInputs();
     void RenderTexts_OnKeyInputs();
 
+    void MoveUp();
+    void MoveDown();
+    void MoveLeft();
+    void MoveRight();
+
+private:
+    int min(int x, int y) { return x < y ? x : y; }
+    int max(int x, int y) { return x < y ? x : y; }
+
 private:
     std::vector<std::string> m_lines;
 
@@ -132,10 +140,16 @@ private:
     float m_charWidth;
     float m_charHeight;
 
+    // 闪烁计时
+    double m_flickerDt = 0.0f;
+    bool m_bResetFlickerDt = false;
+
     std::vector<SelectionInfo> m_selections;
 
     bool m_bIsSelecting = false;
 
     Coordinate m_activeSelectionDown;
     Coordinate m_activeSelectionMove;
+
+    bool m_bNeedFocusOnText = true;
 };

@@ -39,17 +39,24 @@ void NXTextEditor::Init()
 
 void NXTextEditor::Render()
 {
+    if (m_bResetFlickerDt)
+    {
+        m_flickerDt = ImGui::GetTime();
+        m_bResetFlickerDt = false;
+    }
+
     //ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
-    ImGui::Begin("TextEditor", (bool*)true, ImGuiWindowFlags_NoMove);
+    ImGui::Begin("TextEditor", (bool*)true);
+    if (ImGui::IsWindowFocused()) m_bNeedFocusOnText = true;
 
     const ImVec2& layerStartCursorPos = ImGui::GetCursorPos();
 
-    ImGui::BeginChild("##main_layer");
+    ImGui::BeginChild("##main_layer", ImVec2(), false, ImGuiWindowFlags_NoInputs);
     Render_MainLayer();
     ImGui::EndChild();
 
     ImGui::SetCursorPos(layerStartCursorPos);
-    ImGui::BeginChild("##debug_layer", ImVec2(), false, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+    ImGui::BeginChild("##debug_layer", ImVec2(), false, ImGuiWindowFlags_NoInputs);
     Render_DebugLayer();
     ImGui::EndChild();
 
@@ -70,7 +77,6 @@ void NXTextEditor::RemoveSelection(const SelectionInfo& removeSelection)
 
 void NXTextEditor::ClearSelection()
 {
-    auto size = m_selections.size();
     m_selections.clear();
 }
 
@@ -88,13 +94,20 @@ void NXTextEditor::Render_MainLayer()
     Render_OnMouseInputs();
 
     ImGui::SetCursorPos(ImVec2(m_lineTextStartX, 0.0f));
-    ImGui::BeginChild("##text_content", ImVec2(windowSize.x - m_lineTextStartX, windowSize.y), false, ImGuiWindowFlags_HorizontalScrollbar);
+    ImGui::BeginChild("##text_content", ImVec2(windowSize.x - m_lineTextStartX, windowSize.y), false, ImGuiWindowFlags_HorizontalScrollbar | ImGuiWindowFlags_NoNav);
     RenderTexts_OnKeyInputs();
     RenderTexts_OnMouseInputs();
     RenderSelections();
     RenderTexts();
     float scrollY_textContent = ImGui::GetScrollY();
     float scrollBarHeight = ImGui::GetScrollMaxY() > 0.0f ? ImGui::GetStyle().ScrollbarSize : 0.0f;
+
+    if (m_bNeedFocusOnText)
+    {
+        ImGui::SetKeyboardFocusHere();
+        m_bNeedFocusOnText = false;
+    }
+
     ImGui::EndChild();
 
     ImGui::SetCursorPos(ImVec2(0.0f, 0.0f));
@@ -107,7 +120,7 @@ void NXTextEditor::Render_MainLayer()
 void NXTextEditor::Render_DebugLayer()
 {
     ImGui::SetCursorPos(ImVec2(ImGui::GetContentRegionAvail().x - 400.0f, 0.0f));
-    ImGui::BeginChild("##debug_selections", ImVec2(400.0f, 0.0f));
+    ImGui::BeginChild("##debug_selections", ImVec2(350.0f, 0.0f), false, ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoNav);
     for (size_t i = 0; i < m_selections.size(); i++)
     {
         const auto& selection = m_selections[i];
@@ -173,13 +186,14 @@ void NXTextEditor::RenderSelection(const SelectionInfo& selection)
     float scrollX = ImGui::GetScrollX();
     float scrollY = ImGui::GetScrollY();
 
-    const Coordinate& fromPos = selection.L;
-    const Coordinate& toPos = selection.R;
+    const Coordinate fromPos(selection.L.row, min(selection.L.col, (int)m_lines[selection.L.row].size()));
+    const Coordinate toPos(selection.R.row, min(selection.R.col, (int)m_lines[selection.R.row].size()));
 
     ImVec2 flickerPos;
 
     // 判断 A B 是否在同一行
     const bool bSameLine = fromPos.row == toPos.row;
+
     if (bSameLine)
     {
         // 行首坐标
@@ -233,7 +247,7 @@ void NXTextEditor::RenderSelection(const SelectionInfo& selection)
     }
 
     // 绘制闪烁条 每秒钟闪烁一次
-    if (fmod(ImGui::GetTime(), 1.0f) > 0.5f)
+    if (fmod(ImGui::GetTime() - m_flickerDt, 1.0f) < 0.5f)
         drawList->AddLine(flickerPos, ImVec2(flickerPos.x, flickerPos.y + m_charHeight), IM_COL32(255, 255, 0, 255), 1.0f);
 }
 
@@ -244,6 +258,7 @@ void NXTextEditor::SelectionsOverlayCheck(bool bIsAltSelection)
     // 2. 如果 activeSelection 是当前 selection 的子集，则将 selection 删除，但将 activeSelectionDown 移至 selection.L
     // 3. 如果 activeSelection 不是 selection 的子集，但和 selection.L 相交，则将 selection 删除；如果是双击事件Check，将 activeSelectionDown 移至 selection.R
     // 4. 如果 activeSelection 不是 selection 的子集，但和 selection.R 相交，则将 selection 删除；如果是双击事件Check，将 activeSelectionMove 移至 selection.L
+    // 规则和 VSCode 相似，但也同样有 VSCode 的缺陷...比如 alt 选三块然后在块1中间执行alt重选会破坏掉块2、3。不过影响不大。
 
     std::erase_if(m_selections, [this, bIsAltSelection](const SelectionInfo& selection)
         {
@@ -324,6 +339,8 @@ void NXTextEditor::RenderTexts_OnMouseInputs()
             m_activeSelectionMove = { row, right };
             SelectionsOverlayCheck(true);
         }
+
+        m_bResetFlickerDt = true;
     }
     else if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
     {
@@ -360,6 +377,8 @@ void NXTextEditor::RenderTexts_OnMouseInputs()
             m_activeSelectionDown = { row, col };
             m_activeSelectionMove = { row, col };
         }
+
+        m_bResetFlickerDt = true;
     }
     else if (ImGui::IsMouseDragging(ImGuiMouseButton_Left))
     {
@@ -378,6 +397,8 @@ void NXTextEditor::RenderTexts_OnMouseInputs()
         m_bIsSelecting = true;
 		m_activeSelectionMove = { row, col };
         SelectionsOverlayCheck(false);
+
+        m_bResetFlickerDt = true;
     }
 }
 
@@ -403,8 +424,29 @@ void NXTextEditor::RenderTexts_OnKeyInputs()
         io.WantCaptureKeyboard = true;
         io.WantTextInput = true;
 
-		//if (!bModify && ImGui::IsKeyPressed(ImGuiKey_UpArrow))
-			//Do;
+        if (!bModify && ImGui::IsKeyPressed(ImGuiKey_UpArrow))
+        {
+            MoveUp();
+            m_bResetFlickerDt = true;
+        }
+
+        else if (!bModify && ImGui::IsKeyPressed(ImGuiKey_DownArrow))
+        {
+            MoveDown();
+            m_bResetFlickerDt = true;
+        }
+
+        else if (!bModify && ImGui::IsKeyPressed(ImGuiKey_LeftArrow))
+        {
+            MoveLeft();
+            m_bResetFlickerDt = true;
+        }
+
+        else if (!bModify && ImGui::IsKeyPressed(ImGuiKey_RightArrow))
+        {
+            MoveRight();
+            m_bResetFlickerDt = true;
+        }
 
         if (!io.InputQueueCharacters.empty())
         {
@@ -413,10 +455,64 @@ void NXTextEditor::RenderTexts_OnKeyInputs()
                 if (c != 0 && (c == '\n' || c >= 32))
                 {
                     Enter(c);
+                    m_bResetFlickerDt = true;
                 }
             }
 
             io.InputQueueCharacters.resize(0);
         }
+    }
+}
+
+void NXTextEditor::MoveUp()
+{
+    for (auto& sel : m_selections)
+    {
+        auto& pos = sel.flickerAtFront ? sel.L : sel.R;
+        if (pos.row > 0) pos.row--;
+        sel.flickerAtFront ? sel.R = pos : sel.L = pos;
+    }
+}
+
+void NXTextEditor::MoveDown()
+{
+    for (auto& sel : m_selections)
+    {
+        auto& pos = sel.flickerAtFront ? sel.L : sel.R;
+        if (pos.row < m_lines.size() - 1) pos.row++;
+        sel.flickerAtFront ? sel.R = pos : sel.L = pos;
+    }
+}
+
+void NXTextEditor::MoveLeft()
+{
+    for (auto& sel : m_selections)
+    {
+        auto& pos = sel.flickerAtFront ? sel.L : sel.R;
+        pos.col = min(pos.col, (int)m_lines[pos.row].size());
+        if (pos.col > 0)
+            pos.col--;
+        else if (pos.row > 0)
+        {
+            pos.row--;
+            pos.col = (int)m_lines[pos.row].size();
+        }
+        sel.flickerAtFront ? sel.R = pos : sel.L = pos;
+    }
+}
+
+void NXTextEditor::MoveRight()
+{
+    for (auto& sel : m_selections)
+    {
+        auto& pos = sel.flickerAtFront ? sel.L : sel.R;
+        pos.col = min(pos.col, (int)m_lines[pos.row].size());
+        if (pos.col < m_lines[pos.row].size()) pos.col++;
+        else if (pos.row < m_lines.size() - 1)
+        {
+            pos.row++;
+            pos.col = 0;
+        }
+        sel.flickerAtFront ? sel.R = pos : sel.L = pos;
     }
 }
