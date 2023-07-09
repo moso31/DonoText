@@ -104,7 +104,7 @@ private:
     void RenderLineNumber();
 
     void RenderSelection(const SelectionInfo& selection);
-    void SelectionsOverlayCheck(bool bIsAltSelection);
+    void SelectionsOverlayCheck(bool bIsDoubleClick);
 
 private:
     void Render_OnMouseInputs();
@@ -112,10 +112,10 @@ private:
     void RenderTexts_OnMouseInputs();
     void RenderTexts_OnKeyInputs();
 
-    void MoveUp();
-    void MoveDown();
-    void MoveLeft();
-    void MoveRight();
+    void MoveUp(bool bShift);
+    void MoveDown(bool bShift);
+    void MoveLeft(bool bShift);
+    void MoveRight(bool bShift);
 
 private:
     int min(int x, int y) { return x < y ? x : y; }

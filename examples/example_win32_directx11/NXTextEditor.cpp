@@ -124,14 +124,18 @@ void NXTextEditor::Render_DebugLayer()
     for (size_t i = 0; i < m_selections.size(); i++)
     {
         const auto& selection = m_selections[i];
-        std::string info = "Selection " + std::to_string(i) + ":(" + std::to_string(selection.L.row) + ", " + std::to_string(selection.L.col) + ") -> (" + std::to_string(selection.R.row) + ", " + std::to_string(selection.R.col) + ")";
+        std::string info = "Selection " + std::to_string(i) + ":(" + std::to_string(selection.L.row) + ", " + std::to_string(selection.L.col) + ") " + 
+            std::string(selection.flickerAtFront ? "<-" : "->") +
+            " (" + std::to_string(selection.R.row) + ", " + std::to_string(selection.R.col) + ")";
         ImGui::Text(info.c_str());
     }
 
     if (m_bIsSelecting)
     {
         const SelectionInfo selection(m_activeSelectionDown, m_activeSelectionMove);
-        std::string info = "Active selection:(" + std::to_string(selection.L.row) + ", " + std::to_string(selection.L.col) + ") -> (" + std::to_string(selection.R.row) + ", " + std::to_string(selection.R.col) + ")";
+        std::string info = "Active selection:(" + std::to_string(selection.L.row) + ", " + std::to_string(selection.L.col) + ") " +
+            std::string(selection.flickerAtFront ? "<-" : "->") +
+            " (" + std::to_string(selection.R.row) + ", " + std::to_string(selection.R.col) + ")";
         ImGui::Text(info.c_str());
     }
     ImGui::EndChild();
@@ -251,16 +255,15 @@ void NXTextEditor::RenderSelection(const SelectionInfo& selection)
         drawList->AddLine(flickerPos, ImVec2(flickerPos.x, flickerPos.y + m_charHeight), IM_COL32(255, 255, 0, 255), 1.0f);
 }
 
-void NXTextEditor::SelectionsOverlayCheck(bool bIsAltSelection)
+void NXTextEditor::SelectionsOverlayCheck(bool bIsDoubleClick)
 {
     // 检测的 m_selections 的所有元素（下面称为 selection）的覆盖范围是否和当前 { m_activeSelectionDown, m_activeSelectionMove } 重叠
     // 1. 如果 activeSelection 是当前 selection 的父集，则将 selection 删除
     // 2. 如果 activeSelection 是当前 selection 的子集，则将 selection 删除，但将 activeSelectionDown 移至 selection.L
     // 3. 如果 activeSelection 不是 selection 的子集，但和 selection.L 相交，则将 selection 删除；如果是双击事件Check，将 activeSelectionDown 移至 selection.R
     // 4. 如果 activeSelection 不是 selection 的子集，但和 selection.R 相交，则将 selection 删除；如果是双击事件Check，将 activeSelectionMove 移至 selection.L
-    // 规则和 VSCode 相似，但也同样有 VSCode 的缺陷...比如 alt 选三块然后在块1中间执行alt重选会破坏掉块2、3。不过影响不大。
 
-    std::erase_if(m_selections, [this, bIsAltSelection](const SelectionInfo& selection)
+    std::erase_if(m_selections, [this, bIsDoubleClick](const SelectionInfo& selection)
         {
             SelectionInfo activeSelection(m_activeSelectionDown, m_activeSelectionMove);
             if (activeSelection.Include(selection)) // rule 1. 
@@ -272,12 +275,12 @@ void NXTextEditor::SelectionsOverlayCheck(bool bIsAltSelection)
             }
             else if (activeSelection.Include(selection.L)) // rule 3.
             {
-                if (bIsAltSelection) m_activeSelectionMove = selection.R;
+                if (bIsDoubleClick) m_activeSelectionMove = selection.R;
                 return true;
             }
             else if (activeSelection.Include(selection.R)) // rule 4.
             {
-                if (bIsAltSelection) m_activeSelectionDown = selection.L;
+                if (bIsDoubleClick) m_activeSelectionDown = selection.L;
                 return true;
             }
             return false;
@@ -424,27 +427,27 @@ void NXTextEditor::RenderTexts_OnKeyInputs()
         io.WantCaptureKeyboard = true;
         io.WantTextInput = true;
 
-        if (!bModify && ImGui::IsKeyPressed(ImGuiKey_UpArrow))
+        if (!bAlt && !bCtrl && ImGui::IsKeyPressed(ImGuiKey_UpArrow))
         {
-            MoveUp();
+            MoveUp(bShift);
             m_bResetFlickerDt = true;
         }
 
-        else if (!bModify && ImGui::IsKeyPressed(ImGuiKey_DownArrow))
+        else if (!bAlt && !bCtrl && ImGui::IsKeyPressed(ImGuiKey_DownArrow))
         {
-            MoveDown();
+            MoveDown(bShift);
             m_bResetFlickerDt = true;
         }
 
-        else if (!bModify && ImGui::IsKeyPressed(ImGuiKey_LeftArrow))
+        else if (!bAlt && !bCtrl && ImGui::IsKeyPressed(ImGuiKey_LeftArrow))
         {
-            MoveLeft();
+            MoveLeft(bShift);
             m_bResetFlickerDt = true;
         }
 
-        else if (!bModify && ImGui::IsKeyPressed(ImGuiKey_RightArrow))
+        else if (!bAlt && !bCtrl && ImGui::IsKeyPressed(ImGuiKey_RightArrow))
         {
-            MoveRight();
+            MoveRight(bShift);
             m_bResetFlickerDt = true;
         }
 
@@ -464,27 +467,47 @@ void NXTextEditor::RenderTexts_OnKeyInputs()
     }
 }
 
-void NXTextEditor::MoveUp()
+void NXTextEditor::MoveUp(bool bShift)
 {
     for (auto& sel : m_selections)
     {
         auto& pos = sel.flickerAtFront ? sel.L : sel.R;
         if (pos.row > 0) pos.row--;
-        sel.flickerAtFront ? sel.R = pos : sel.L = pos;
+
+        if (!bShift)
+            sel.flickerAtFront ? sel.R = pos : sel.L = pos;
+        else
+        {
+            if (sel.R < sel.L)
+            {
+                std::swap(sel.L, sel.R);
+                sel.flickerAtFront = true;
+            }
+        }
     }
 }
 
-void NXTextEditor::MoveDown()
+void NXTextEditor::MoveDown(bool bShift)
 {
     for (auto& sel : m_selections)
     {
         auto& pos = sel.flickerAtFront ? sel.L : sel.R;
         if (pos.row < m_lines.size() - 1) pos.row++;
-        sel.flickerAtFront ? sel.R = pos : sel.L = pos;
+
+        if (!bShift)
+            sel.flickerAtFront ? sel.R = pos : sel.L = pos;
+        else
+        {
+            if (sel.L > sel.R)
+            {
+                std::swap(sel.L, sel.R);
+                sel.flickerAtFront = false;
+            }
+        }
     }
 }
 
-void NXTextEditor::MoveLeft()
+void NXTextEditor::MoveLeft(bool bShift)
 {
     for (auto& sel : m_selections)
     {
@@ -497,11 +520,13 @@ void NXTextEditor::MoveLeft()
             pos.row--;
             pos.col = (int)m_lines[pos.row].size();
         }
-        sel.flickerAtFront ? sel.R = pos : sel.L = pos;
+
+        if (!bShift)
+            sel.flickerAtFront ? sel.R = pos : sel.L = pos;
     }
 }
 
-void NXTextEditor::MoveRight()
+void NXTextEditor::MoveRight(bool bShift)
 {
     for (auto& sel : m_selections)
     {
@@ -513,6 +538,8 @@ void NXTextEditor::MoveRight()
             pos.row++;
             pos.col = 0;
         }
-        sel.flickerAtFront ? sel.R = pos : sel.L = pos;
+
+        if (!bShift)
+            sel.flickerAtFront ? sel.R = pos : sel.L = pos;
     }
 }
