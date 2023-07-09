@@ -159,7 +159,9 @@ private:
     double m_flickerDt = 0.0f;
     bool m_bResetFlickerDt = false;
 
+    // 记录选中信息
     std::vector<SelectionInfo> m_selections;
+    // 另一组选中信息，用于在选区变化时进行去重。
     std::vector<SignedCoordinate> m_overlaySelectCheck;
 
     bool m_bIsSelecting = false;

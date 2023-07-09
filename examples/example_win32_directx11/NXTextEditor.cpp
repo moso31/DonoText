@@ -347,6 +347,9 @@ void NXTextEditor::SelectionsOverlayCheckForKeyEvent(bool bFlickerAtFront)
 
 void NXTextEditor::RenderTexts_OnMouseInputs()
 {
+    if (!ImGui::IsWindowFocused())
+        return;
+
     auto& io = ImGui::GetIO();
 
     float scrollX = ImGui::GetScrollX();
