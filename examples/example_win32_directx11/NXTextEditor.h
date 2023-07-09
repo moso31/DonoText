@@ -98,6 +98,7 @@ public:
 
 private:
     void Render_MainLayer();
+    void Render_DebugLayer();
 
     void RenderSelections();
     void RenderTexts();

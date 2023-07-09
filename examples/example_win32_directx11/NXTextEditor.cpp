@@ -42,8 +42,15 @@ void NXTextEditor::Render()
     //ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
     ImGui::Begin("TextEditor", (bool*)true, ImGuiWindowFlags_NoMove);
 
+    const ImVec2& layerStartCursorPos = ImGui::GetCursorPos();
+
     ImGui::BeginChild("##main_layer");
     Render_MainLayer();
+    ImGui::EndChild();
+
+    ImGui::SetCursorPos(layerStartCursorPos);
+    ImGui::BeginChild("##debug_layer", ImVec2(), false, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+    Render_DebugLayer();
     ImGui::EndChild();
 
     ImGui::End();
@@ -97,12 +104,32 @@ void NXTextEditor::Render_MainLayer()
     ImGui::EndChild();
 }
 
+void NXTextEditor::Render_DebugLayer()
+{
+    ImGui::SetCursorPos(ImVec2(ImGui::GetContentRegionAvail().x - 400.0f, 0.0f));
+    ImGui::BeginChild("##debug_selections", ImVec2(400.0f, 0.0f));
+    for (size_t i = 0; i < m_selections.size(); i++)
+    {
+        const auto& selection = m_selections[i];
+        std::string info = "Selection " + std::to_string(i) + ":(" + std::to_string(selection.L.row) + ", " + std::to_string(selection.L.col) + ") -> (" + std::to_string(selection.R.row) + ", " + std::to_string(selection.R.col) + ")";
+        ImGui::Text(info.c_str());
+    }
+
+    if (m_bIsSelecting)
+    {
+        const SelectionInfo selection(m_activeSelectionDown, m_activeSelectionMove);
+        std::string info = "Active selection:(" + std::to_string(selection.L.row) + ", " + std::to_string(selection.L.col) + ") -> (" + std::to_string(selection.R.row) + ", " + std::to_string(selection.R.col) + ")";
+        ImGui::Text(info.c_str());
+    }
+    ImGui::EndChild();
+}
+
 void NXTextEditor::RenderSelections()
 {
     for (const auto& selection : m_selections)
         RenderSelection(selection);
 
-    if ()
+    if (m_bIsSelecting)
     {
         SelectionInfo activeSelection(m_activeSelectionDown, m_activeSelectionMove);
         RenderSelection(activeSelection);
