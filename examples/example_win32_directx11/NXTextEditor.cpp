@@ -121,6 +121,8 @@ void NXTextEditor::Render_DebugLayer()
 {
     ImGui::SetCursorPos(ImVec2(ImGui::GetContentRegionAvail().x - 400.0f, 0.0f));
     ImGui::BeginChild("##debug_selections", ImVec2(350.0f, 0.0f), false, ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoNav);
+    ImGui::Text("Disable Render_DebugLayer() method to hide me!");
+
     for (size_t i = 0; i < m_selections.size(); i++)
     {
         const auto& selection = m_selections[i];
@@ -251,11 +253,12 @@ void NXTextEditor::RenderSelection(const SelectionInfo& selection)
     }
 
     // 绘制闪烁条 每秒钟闪烁一次
+    // 使用 ForegroundDrawList，确保闪烁条始终在选中状态矩形上面
     if (fmod(ImGui::GetTime() - m_flickerDt, 1.0f) < 0.5f)
-        drawList->AddLine(flickerPos, ImVec2(flickerPos.x, flickerPos.y + m_charHeight), IM_COL32(255, 255, 0, 255), 1.0f);
+        ImGui::GetForegroundDrawList()->AddLine(flickerPos, ImVec2(flickerPos.x, flickerPos.y + m_charHeight), IM_COL32(255, 255, 0, 255), 1.0f);
 }
 
-void NXTextEditor::SelectionsOverlayCheck(bool bIsDoubleClick)
+void NXTextEditor::SelectionsOverlayCheckForMouseEvent(bool bIsDoubleClick)
 {
     // 检测的 m_selections 的所有元素（下面称为 selection）的覆盖范围是否和当前 { m_activeSelectionDown, m_activeSelectionMove } 重叠
     // 1. 如果 activeSelection 是当前 selection 的父集，则将 selection 删除
@@ -285,6 +288,61 @@ void NXTextEditor::SelectionsOverlayCheck(bool bIsDoubleClick)
             }
             return false;
         });
+}
+
+void NXTextEditor::SelectionsOverlayCheckForKeyEvent(bool bFlickerAtFront)
+{
+    // 检测键盘输入事件导致Selection发生变化以后是否相互重叠，
+    // 如果两个 selection 重叠，合并成一个。重叠以后的 新selection 是否 flickerAtFront 由键盘事件的类型决定。
+
+    m_overlaySelectCheck.clear();
+    m_overlaySelectCheck.reserve(m_selections.size() * 2);
+    for (const auto& selection: m_selections)
+    {
+        m_overlaySelectCheck.push_back({ selection.L, true, selection.flickerAtFront });
+        m_overlaySelectCheck.push_back({ selection.R, false, selection.flickerAtFront });
+    }
+
+    // 按坐标排序
+    std::sort(m_overlaySelectCheck.begin(), m_overlaySelectCheck.end(), [](const SignedCoordinate& a, const SignedCoordinate& b) { return a.value < b.value; });
+
+    Coordinate left, right;
+    int leftSignCount = 0; // 遇左+1，遇右-1。
+    bool overlayed = false; // 当 leftSignCount>1 时，说明有重叠产生，使用此值记录
+
+    // 检测重叠，如果有重叠的selection，去掉
+    m_selections.clear();
+    for (auto& coord : m_overlaySelectCheck)
+    {
+        if (coord.isLeft)
+        {
+            if (leftSignCount == 0)
+            {
+                left = coord.value;
+            }
+            else if (leftSignCount > 0) overlayed = true; // 检测是否出现了重叠
+            leftSignCount++;
+        }
+        else
+        {
+            leftSignCount--;
+            if (leftSignCount == 0)
+            {
+                right = coord.value;
+                if (overlayed)
+                {
+                    // 如果出现重叠，基于当前键盘事件判断 flickerAtFront
+                    m_selections.push_back(bFlickerAtFront ? SelectionInfo(right, left) : SelectionInfo(left, right));
+                }
+                else
+                {
+                    // 如果没有出现重叠，保留之前的 flickerAtFront
+                    m_selections.push_back(coord.flickerAtFront ? SelectionInfo(right, left) : SelectionInfo(left, right));
+                }
+                overlayed = false;
+            }
+        }
+    }
 }
 
 void NXTextEditor::RenderTexts_OnMouseInputs()
@@ -340,7 +398,7 @@ void NXTextEditor::RenderTexts_OnMouseInputs()
             m_bIsSelecting = true;
             m_activeSelectionDown = { row, left + 1 };
             m_activeSelectionMove = { row, right };
-            SelectionsOverlayCheck(true);
+            SelectionsOverlayCheckForMouseEvent(true);
         }
 
         m_bResetFlickerDt = true;
@@ -399,7 +457,7 @@ void NXTextEditor::RenderTexts_OnMouseInputs()
 
         m_bIsSelecting = true;
 		m_activeSelectionMove = { row, col };
-        SelectionsOverlayCheck(false);
+        SelectionsOverlayCheckForMouseEvent(false);
 
         m_bResetFlickerDt = true;
     }
@@ -483,6 +541,8 @@ void NXTextEditor::MoveUp(bool bShift)
                 std::swap(sel.L, sel.R);
                 sel.flickerAtFront = true;
             }
+
+            SelectionsOverlayCheckForKeyEvent(true);
         }
     }
 }
@@ -503,6 +563,8 @@ void NXTextEditor::MoveDown(bool bShift)
                 std::swap(sel.L, sel.R);
                 sel.flickerAtFront = false;
             }
+
+            SelectionsOverlayCheckForKeyEvent(false);
         }
     }
 }
@@ -523,6 +585,8 @@ void NXTextEditor::MoveLeft(bool bShift)
 
         if (!bShift)
             sel.flickerAtFront ? sel.R = pos : sel.L = pos;
+        else
+            SelectionsOverlayCheckForKeyEvent(true);
     }
 }
 
@@ -541,5 +605,7 @@ void NXTextEditor::MoveRight(bool bShift)
 
         if (!bShift)
             sel.flickerAtFront ? sel.R = pos : sel.L = pos;
+        else
+            SelectionsOverlayCheckForKeyEvent(false);
     }
 }

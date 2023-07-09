@@ -1,7 +1,7 @@
 ﻿#pragma once
 #include <vector>
 #include <string>
-#include <unordered_map>
+#include <algorithm>
 #include "imgui.h"
 
 class NXTextEditor
@@ -80,6 +80,20 @@ class NXTextEditor
         bool flickerAtFront = false;
     };
 
+    struct SignedCoordinate
+    {
+        SignedCoordinate(Coordinate value, bool isLeft, bool flickerAtFront) : value(value), isLeft(isLeft), flickerAtFront(flickerAtFront) {}
+
+        bool operator<(const SignedCoordinate& rhs) const
+        {
+            return value < rhs.value || (value == rhs.value && isLeft < rhs.isLeft);
+        }
+
+        Coordinate value;
+        int isLeft;
+        bool flickerAtFront;
+    };
+
 public:
     NXTextEditor();
     ~NXTextEditor() {}
@@ -104,7 +118,8 @@ private:
     void RenderLineNumber();
 
     void RenderSelection(const SelectionInfo& selection);
-    void SelectionsOverlayCheck(bool bIsDoubleClick);
+    void SelectionsOverlayCheckForMouseEvent(bool bIsDoubleClick);
+    void SelectionsOverlayCheckForKeyEvent(bool bFlickerAtFront);
 
 private:
     void Render_OnMouseInputs();
@@ -145,6 +160,7 @@ private:
     bool m_bResetFlickerDt = false;
 
     std::vector<SelectionInfo> m_selections;
+    std::vector<SignedCoordinate> m_overlaySelectCheck;
 
     bool m_bIsSelecting = false;
 
