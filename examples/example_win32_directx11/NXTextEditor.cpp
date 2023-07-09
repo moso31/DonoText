@@ -192,8 +192,8 @@ void NXTextEditor::RenderSelection(const SelectionInfo& selection)
     float scrollX = ImGui::GetScrollX();
     float scrollY = ImGui::GetScrollY();
 
-    const Coordinate fromPos(selection.L.row, min(selection.L.col, (int)m_lines[selection.L.row].size()));
-    const Coordinate toPos(selection.R.row, min(selection.R.col, (int)m_lines[selection.R.row].size()));
+    const Coordinate fromPos(selection.L.row, std::min(selection.L.col, (int)m_lines[selection.L.row].size()));
+    const Coordinate toPos(selection.R.row, std::min(selection.R.col, (int)m_lines[selection.R.row].size()));
 
     ImVec2 flickerPos;
 
@@ -577,7 +577,7 @@ void NXTextEditor::MoveLeft(bool bShift)
     for (auto& sel : m_selections)
     {
         auto& pos = sel.flickerAtFront ? sel.L : sel.R;
-        pos.col = min(pos.col, (int)m_lines[pos.row].size());
+        pos.col = std::min(pos.col, (int)m_lines[pos.row].size());
         if (pos.col > 0)
             pos.col--;
         else if (pos.row > 0)
@@ -598,7 +598,7 @@ void NXTextEditor::MoveRight(bool bShift)
     for (auto& sel : m_selections)
     {
         auto& pos = sel.flickerAtFront ? sel.L : sel.R;
-        pos.col = min(pos.col, (int)m_lines[pos.row].size());
+        pos.col = std::min(pos.col, (int)m_lines[pos.row].size());
         if (pos.col < m_lines[pos.row].size()) pos.col++;
         else if (pos.row < m_lines.size() - 1)
         {

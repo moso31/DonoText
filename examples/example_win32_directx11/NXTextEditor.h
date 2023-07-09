@@ -133,10 +133,6 @@ private:
     void MoveRight(bool bShift);
 
 private:
-    int min(int x, int y) { return x < y ? x : y; }
-    int max(int x, int y) { return x < y ? x : y; }
-
-private:
     std::vector<std::string> m_lines;
 
 private:
