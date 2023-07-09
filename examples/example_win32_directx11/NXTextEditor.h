@@ -132,7 +132,7 @@ private:
     void MoveLeft(bool bShift, bool bCtrl);
     void MoveRight(bool bShift, bool bCtrl);
 
-    bool IsCtrlSkipable(const char& ch);
+    bool IsVariableChar(const char& ch);
 
 private:
     std::vector<std::string> m_lines;

@@ -1,6 +1,7 @@
 ﻿#include "NXTextEditor.h"
 #include <fstream>
 #include <iostream>
+#include <cctype>
 
 NXTextEditor::NXTextEditor()
 {
@@ -488,13 +489,13 @@ void NXTextEditor::RenderTexts_OnKeyInputs()
         io.WantCaptureKeyboard = true;
         io.WantTextInput = true;
 
-        if (!bAlt && !bCtrl && ImGui::IsKeyPressed(ImGuiKey_UpArrow))
+        if (!bAlt && ImGui::IsKeyPressed(ImGuiKey_UpArrow))
         {
             MoveUp(bShift);
             m_bResetFlickerDt = true;
         }
 
-        else if (!bAlt && !bCtrl && ImGui::IsKeyPressed(ImGuiKey_DownArrow))
+        else if (!bAlt && ImGui::IsKeyPressed(ImGuiKey_DownArrow))
         {
             MoveDown(bShift);
             m_bResetFlickerDt = true;
@@ -580,20 +581,39 @@ void NXTextEditor::MoveLeft(bool bShift, bool bCtrl)
         pos.col = std::min(pos.col, (int)m_lines[pos.row].size());
         if (pos.col > 0)
         {
-            pos.col--;
-            if (bCtrl) while (pos.col > 0 && IsCtrlSkipable(m_lines[pos.row][pos.col])) pos.col--;
+            if (bCtrl)
+            {
+                pos.col--;
+                while (pos.col > 0 && !IsVariableChar(m_lines[pos.row][pos.col])) pos.col--;
+                if (pos.col > 0)
+                {
+                    while (pos.col > 0 && IsVariableChar(m_lines[pos.row][pos.col])) pos.col--;
+                    pos.col++;
+                }
+            }
+            else
+            {
+                pos.col--;
+            }
         }
         else if (pos.row > 0)
         {
             pos.row--;
             pos.col = (int)m_lines[pos.row].size();
-            if (bCtrl) while (pos.col > 0 && IsCtrlSkipable(m_lines[pos.row][pos.col])) pos.col--;
         }
 
         if (!bShift)
             sel.flickerAtFront ? sel.R = pos : sel.L = pos;
         else
+        {
+            if (sel.R < sel.L)
+            {
+                std::swap(sel.L, sel.R);
+                sel.flickerAtFront = true;
+            }
+
             SelectionsOverlayCheckForKeyEvent(true);
+        }
     }
 }
 
@@ -605,25 +625,43 @@ void NXTextEditor::MoveRight(bool bShift, bool bCtrl)
         pos.col = std::min(pos.col, (int)m_lines[pos.row].size());
         if (pos.col < m_lines[pos.row].size())
         {
-            pos.col++;
-            if (bCtrl) while (pos.col < m_lines[pos.row].size() && IsCtrlSkipable(m_lines[pos.row][pos.col])) pos.col++;
+            if (bCtrl)
+            {
+                pos.col++;
+                while (pos.col < m_lines[pos.row].size() && !IsVariableChar(m_lines[pos.row][pos.col])) pos.col++;
+                if (pos.col < m_lines[pos.row].size())
+                {
+                    while (pos.col < m_lines[pos.row].size() && IsVariableChar(m_lines[pos.row][pos.col])) pos.col++;
+                }
+            }
+            else
+            {
+                pos.col++;
+            }
         }
         else if (pos.row < m_lines.size() - 1)
         {
             pos.row++;
             pos.col = 0;
-            if (bCtrl) while (pos.col < m_lines[pos.row].size() && IsCtrlSkipable(m_lines[pos.row][pos.col])) pos.col++;
         }
 
         if (!bShift)
             sel.flickerAtFront ? sel.R = pos : sel.L = pos;
         else
+        {
+            if (sel.R < sel.L)
+            {
+                std::swap(sel.L, sel.R);
+                sel.flickerAtFront = true;
+            }
+
             SelectionsOverlayCheckForKeyEvent(false);
+        }
     }
 }
 
-bool NXTextEditor::IsCtrlSkipable(const char& ch)
+bool NXTextEditor::IsVariableChar(const char& ch)
 {
     // ctrl+left/right 可以跳过的字符：
-    return ch != ' ' && ch != '\t';
+    return std::isalnum(ch) || ch == '_';
 }
