@@ -489,27 +489,36 @@ void NXTextEditor::RenderTexts_OnKeyInputs()
         io.WantCaptureKeyboard = true;
         io.WantTextInput = true;
 
-        if (!bAlt && ImGui::IsKeyPressed(ImGuiKey_UpArrow))
+        bool bKeyUpPressed = ImGui::IsKeyPressed(ImGuiKey_UpArrow);
+        bool bKeyDownPressed = ImGui::IsKeyPressed(ImGuiKey_DownArrow);
+        bool bKeyLeftPressed = ImGui::IsKeyPressed(ImGuiKey_LeftArrow);
+        bool bKeyRightPressed = ImGui::IsKeyPressed(ImGuiKey_RightArrow);
+        bool bKeyHomePressed = ImGui::IsKeyPressed(ImGuiKey_Home);
+        bool bKeyEndPressed = ImGui::IsKeyPressed(ImGuiKey_End);
+        bool bKeyPageUpPressed = ImGui::IsKeyPressed(ImGuiKey_PageUp);
+        bool bKeyPageDownPressed = ImGui::IsKeyPressed(ImGuiKey_PageDown);
+
+        if (!bAlt && (bKeyUpPressed || bKeyPageUpPressed))
         {
-            MoveUp(bShift);
+            MoveUp(bShift, bKeyPageUpPressed);
             m_bResetFlickerDt = true;
         }
 
-        else if (!bAlt && ImGui::IsKeyPressed(ImGuiKey_DownArrow))
+        else if (!bAlt && (bKeyDownPressed || bKeyPageDownPressed))
         {
-            MoveDown(bShift);
+            MoveDown(bShift, bKeyPageDownPressed);
             m_bResetFlickerDt = true;
         }
 
-        else if (!bAlt && ImGui::IsKeyPressed(ImGuiKey_LeftArrow))
+        else if (!bAlt && (bKeyLeftPressed || bKeyHomePressed))
         {
-            MoveLeft(bShift, bCtrl);
+            MoveLeft(bShift, bCtrl, bKeyHomePressed);
             m_bResetFlickerDt = true;
         }
 
-        else if (!bAlt && ImGui::IsKeyPressed(ImGuiKey_RightArrow))
+        else if (!bAlt && (bKeyRightPressed || bKeyEndPressed))
         {
-            MoveRight(bShift, bCtrl);
+            MoveRight(bShift, bCtrl, bKeyEndPressed);
             m_bResetFlickerDt = true;
         }
 
@@ -529,7 +538,7 @@ void NXTextEditor::RenderTexts_OnKeyInputs()
     }
 }
 
-void NXTextEditor::MoveUp(bool bShift)
+void NXTextEditor::MoveUp(bool bShift, bool bPageUp)
 {
     for (auto& sel : m_selections)
     {
@@ -551,7 +560,7 @@ void NXTextEditor::MoveUp(bool bShift)
     }
 }
 
-void NXTextEditor::MoveDown(bool bShift)
+void NXTextEditor::MoveDown(bool bShift, bool bPageDown)
 {
     for (auto& sel : m_selections)
     {
@@ -573,27 +582,24 @@ void NXTextEditor::MoveDown(bool bShift)
     }
 }
 
-void NXTextEditor::MoveLeft(bool bShift, bool bCtrl)
+void NXTextEditor::MoveLeft(bool bShift, bool bCtrl, bool bHome)
 {
     for (auto& sel : m_selections)
     {
         auto& pos = sel.flickerAtFront ? sel.L : sel.R;
         pos.col = std::min(pos.col, (int)m_lines[pos.row].size());
-        if (pos.col > 0)
+        if (bHome) pos.col = 0;
+        else if (pos.col > 0)
         {
+            pos.col--;
             if (bCtrl)
             {
-                pos.col--;
                 while (pos.col > 0 && !IsVariableChar(m_lines[pos.row][pos.col])) pos.col--;
                 if (pos.col > 0)
                 {
                     while (pos.col > 0 && IsVariableChar(m_lines[pos.row][pos.col])) pos.col--;
                     pos.col++;
                 }
-            }
-            else
-            {
-                pos.col--;
             }
         }
         else if (pos.row > 0)
@@ -617,26 +623,23 @@ void NXTextEditor::MoveLeft(bool bShift, bool bCtrl)
     }
 }
 
-void NXTextEditor::MoveRight(bool bShift, bool bCtrl)
+void NXTextEditor::MoveRight(bool bShift, bool bCtrl, bool bEnd)
 {
     for (auto& sel : m_selections)
     {
         auto& pos = sel.flickerAtFront ? sel.L : sel.R;
         pos.col = std::min(pos.col, (int)m_lines[pos.row].size());
-        if (pos.col < m_lines[pos.row].size())
+        if (bEnd) pos.col = (int)m_lines[pos.row].size();
+        else if (pos.col < m_lines[pos.row].size())
         {
+            pos.col++;
             if (bCtrl)
             {
-                pos.col++;
                 while (pos.col < m_lines[pos.row].size() && !IsVariableChar(m_lines[pos.row][pos.col])) pos.col++;
                 if (pos.col < m_lines[pos.row].size())
                 {
                     while (pos.col < m_lines[pos.row].size() && IsVariableChar(m_lines[pos.row][pos.col])) pos.col++;
                 }
-            }
-            else
-            {
-                pos.col++;
             }
         }
         else if (pos.row < m_lines.size() - 1)
@@ -649,10 +652,10 @@ void NXTextEditor::MoveRight(bool bShift, bool bCtrl)
             sel.flickerAtFront ? sel.R = pos : sel.L = pos;
         else
         {
-            if (sel.R < sel.L)
+            if (sel.L > sel.R)
             {
                 std::swap(sel.L, sel.R);
-                sel.flickerAtFront = true;
+                sel.flickerAtFront = false;
             }
 
             SelectionsOverlayCheckForKeyEvent(false);

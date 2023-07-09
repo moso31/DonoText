@@ -127,10 +127,10 @@ private:
     void RenderTexts_OnMouseInputs();
     void RenderTexts_OnKeyInputs();
 
-    void MoveUp(bool bShift);
-    void MoveDown(bool bShift);
-    void MoveLeft(bool bShift, bool bCtrl);
-    void MoveRight(bool bShift, bool bCtrl);
+    void MoveUp(bool bShift, bool bPageUp);
+    void MoveDown(bool bShift, bool bPageDown);
+    void MoveLeft(bool bShift, bool bCtrl, bool bHome);
+    void MoveRight(bool bShift, bool bCtrl, bool bEnd);
 
     bool IsVariableChar(const char& ch);
 
