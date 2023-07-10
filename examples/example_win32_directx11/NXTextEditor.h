@@ -120,6 +120,7 @@ private:
     void RenderSelection(const SelectionInfo& selection);
     void SelectionsOverlayCheckForMouseEvent(bool bIsDoubleClick);
     void SelectionsOverlayCheckForKeyEvent(bool bFlickerAtFront);
+    void ScrollCheckForKeyEvent();
 
 private:
     void Render_OnMouseInputs();

@@ -33,9 +33,6 @@ void NXTextEditor::Init()
     // 行号矩形 - 文本 之间留一个4px的空
     float paddingX = 4.0f;
     m_lineTextStartX = m_lineNumberWidthWithPaddingX + paddingX;
-
-    AddSelection({ 10, 10 }, { 10, 25 });
-    AddSelection({ 40, 15 }, { 14, 10 });
 }
 
 void NXTextEditor::Render()
@@ -176,7 +173,7 @@ void NXTextEditor::RenderLineNumber()
     size_t strLineSize = std::to_string(m_lines.size()).length();
     for (int i = 0; i < m_lines.size(); i++)
     {
-        std::string strLineNumber = std::to_string(i);
+        std::string strLineNumber = std::to_string(i + 1);
         while (strLineNumber.size() < strLineSize)
             strLineNumber = " " + strLineNumber;
 
@@ -193,22 +190,22 @@ void NXTextEditor::RenderSelection(const SelectionInfo& selection)
     float scrollX = ImGui::GetScrollX();
     float scrollY = ImGui::GetScrollY();
 
-    const Coordinate fromPos(selection.L.row, std::min(selection.L.col, (int)m_lines[selection.L.row].size()));
-    const Coordinate toPos(selection.R.row, std::min(selection.R.col, (int)m_lines[selection.R.row].size()));
+    const Coordinate fromPos(selection.L.row, selection.L.col);
+    const Coordinate toPos(selection.R.row, selection.R.col);
 
     ImVec2 flickerPos;
 
     // 判断 A B 是否在同一行
-    const bool bSameLine = fromPos.row == toPos.row;
+    const bool bSingleLine = fromPos.row == toPos.row;
 
-    if (bSameLine)
+    if (bSingleLine)
     {
         // 行首坐标
         ImVec2 linePos(windowPos.x, windowPos.y + m_charHeight * fromPos.row - scrollY);
 
         // 绘制所选对象的选中状态矩形
         ImVec2 selectStartPos(linePos.x + fromPos.col * m_charWidth - scrollX, linePos.y);
-        ImVec2 selectEndPos(linePos.x + toPos.col * m_charWidth - scrollX, linePos.y + m_charHeight);
+        ImVec2 selectEndPos(linePos.x + toPos.col * m_charWidth - scrollX, linePos.y + m_charHeight); 
         drawList->AddRectFilled(selectStartPos, selectEndPos, IM_COL32(100, 100, 0, 255));
 
         // 计算闪烁位置
@@ -216,6 +213,9 @@ void NXTextEditor::RenderSelection(const SelectionInfo& selection)
     }
     else
     {
+        // 多行文本除最后一行，其它行的选中矩形都向右增加一个字符长度
+        float enterCharOffset = m_charWidth;
+
         // 绘制首行，先确定首行字符长度
         const size_t firstLineLength = m_lines[fromPos.row].length();
 
@@ -224,7 +224,7 @@ void NXTextEditor::RenderSelection(const SelectionInfo& selection)
         // 绘制所选对象的选中状态矩形
         ImVec2 selectStartPos(linePos.x + fromPos.col * m_charWidth - scrollX, linePos.y);
         ImVec2 selectEndPos(linePos.x + firstLineLength * m_charWidth - scrollX, linePos.y + m_charHeight);
-        drawList->AddRectFilled(selectStartPos, selectEndPos, IM_COL32(100, 100, 0, 255));
+        drawList->AddRectFilled(selectStartPos, ImVec2(selectEndPos.x + enterCharOffset, selectEndPos.y), IM_COL32(100, 100, 0, 255));
 
         // 如果是 B在前，A在后，则在文本开始处闪烁
         if (selection.flickerAtFront) flickerPos = selectStartPos;
@@ -237,7 +237,7 @@ void NXTextEditor::RenderSelection(const SelectionInfo& selection)
             // 绘制所选对象的选中状态矩形
             selectStartPos = ImVec2(linePos.x - scrollX, linePos.y);
             selectEndPos = ImVec2(linePos.x + m_lines[i].length() * m_charWidth - scrollX, linePos.y + m_charHeight);
-            drawList->AddRectFilled(selectStartPos, selectEndPos, IM_COL32(100, 100, 0, 255));
+            drawList->AddRectFilled(selectStartPos, ImVec2(selectEndPos.x + enterCharOffset, selectEndPos.y), IM_COL32(100, 100, 0, 255));
         }
 
         // 绘制尾行，先确定尾行字符长度
@@ -346,6 +346,11 @@ void NXTextEditor::SelectionsOverlayCheckForKeyEvent(bool bFlickerAtFront)
     }
 }
 
+void NXTextEditor::ScrollCheckForKeyEvent()
+{
+
+}
+
 void NXTextEditor::RenderTexts_OnMouseInputs()
 {
     if (!ImGui::IsWindowFocused())
@@ -372,10 +377,7 @@ void NXTextEditor::RenderTexts_OnMouseInputs()
     bool isMouseInContentArea = mousePos.x >= contentAreaMin.x && mousePos.x <= contentAreaMax.x &&
         mousePos.y >= contentAreaMin.y && mousePos.y <= contentAreaMax.y;
 
-    if (!isMouseInContentArea)
-        return;
-
-    if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+    if (isMouseInContentArea && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
     {
         // 计算出行列号
         int row = (int)(relativePos.y / m_charHeight);
@@ -407,7 +409,7 @@ void NXTextEditor::RenderTexts_OnMouseInputs()
 
         m_bResetFlickerDt = true;
     }
-    else if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+    else if (isMouseInContentArea && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
     {
         // 计算出行列号
         int row = (int)(relativePos.y / m_charHeight);
@@ -445,7 +447,7 @@ void NXTextEditor::RenderTexts_OnMouseInputs()
 
         m_bResetFlickerDt = true;
     }
-    else if (ImGui::IsMouseDragging(ImGuiMouseButton_Left))
+    else if (m_bIsSelecting && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
     {
         // 处理鼠标拖拽
         // 计算出行列号
@@ -459,11 +461,32 @@ void NXTextEditor::RenderTexts_OnMouseInputs()
         row = std::max(0, std::min(row, (int)m_lines.size() - 1));
         col = std::max(0, std::min(col, (int)m_lines[row].size()));
 
-        m_bIsSelecting = true;
 		m_activeSelectionMove = { row, col };
         SelectionsOverlayCheckForMouseEvent(false);
 
         m_bResetFlickerDt = true;
+
+        // 超出当前显示范围时 scrollX/Y
+        const ImVec2 dragSpeed(m_charWidth * 4.0f, m_charHeight * 2.0f);
+        const auto& contentArea(ImGui::GetContentRegionAvail());
+        const ImVec2 scrollMax(ImGui::GetScrollMaxX(), ImGui::GetScrollMaxY());
+        float scrollBarWidth = scrollMax.x > 0.0f ? ImGui::GetStyle().ScrollbarSize : 0.0f;
+        float scrollBarHeight = scrollMax.y > 0.0f ? ImGui::GetStyle().ScrollbarSize : 0.0f;
+
+        if (relativeWindowPos.x < 0)
+            ImGui::SetScrollX(std::max(scrollX - dragSpeed.x, 0.0f));
+        else if (relativeWindowPos.x > contentArea.x + scrollBarWidth)
+        {
+            // 当 scrollX 右移时，不准超过当前鼠标所在行的最大文本长度 + 50.0 像素
+            float scrollXLimit = m_lines[row].size() * m_charWidth - contentArea.x + 50.0f;
+            scrollXLimit = std::min(scrollXLimit, scrollMax.x);
+            ImGui::SetScrollX(std::min(scrollX + dragSpeed.x, scrollXLimit));
+        }
+
+        if (relativeWindowPos.y < 0)
+            ImGui::SetScrollY(std::max(scrollY - dragSpeed.y, 0.0f));
+        else if (relativeWindowPos.y > contentArea.y + scrollBarHeight)
+            ImGui::SetScrollY(std::min(scrollY + dragSpeed.y, scrollMax.y));
     }
 }
 
@@ -540,10 +563,18 @@ void NXTextEditor::RenderTexts_OnKeyInputs()
 
 void NXTextEditor::MoveUp(bool bShift, bool bPageUp)
 {
+    int maxRow = 0;
     for (auto& sel : m_selections)
     {
         auto& pos = sel.flickerAtFront ? sel.L : sel.R;
-        if (pos.row > 0) pos.row--;
+        bPageUp ? pos.row -= 20 : pos.row--;
+        maxRow = std::max(maxRow, pos.row);
+
+        if (pos.row < 0)
+        {
+            pos.row = 0;
+            pos.col = 0;
+        }
 
         if (!bShift)
             sel.flickerAtFront ? sel.R = pos : sel.L = pos;
@@ -558,14 +589,37 @@ void NXTextEditor::MoveUp(bool bShift, bool bPageUp)
             SelectionsOverlayCheckForKeyEvent(true);
         }
     }
+
+    // 如果超出窗口边界，scrollY
+    float scrollY = ImGui::GetScrollY();
+    float scrollMaxY = ImGui::GetScrollMaxY();
+    float contentAreaHeight = ImGui::GetContentRegionAvail().y;
+    float newSelectHeight = (float)maxRow * m_charHeight;
+    float scrollBarHeight = scrollMaxY > 0.0f ? ImGui::GetStyle().ScrollbarSize : 0.0f;
+    if (newSelectHeight < scrollY)
+    {
+        ImGui::SetScrollY(newSelectHeight);
+    }
+    else if (newSelectHeight > scrollY + contentAreaHeight + scrollBarHeight)
+    {
+        ImGui::SetScrollY(std::min(newSelectHeight - contentAreaHeight + 2 * m_charHeight, scrollMaxY));
+    }
 }
 
 void NXTextEditor::MoveDown(bool bShift, bool bPageDown)
 {
+    int maxRow = 0;
     for (auto& sel : m_selections)
     {
         auto& pos = sel.flickerAtFront ? sel.L : sel.R;
-        if (pos.row < m_lines.size() - 1) pos.row++;
+        bPageDown ? pos.row += 20 : pos.row++;
+        maxRow = std::max(maxRow, pos.row);
+
+        if (pos.row >= m_lines.size())
+        {
+            pos.row = (int)m_lines.size() - 1;
+            pos.col = (int)m_lines[pos.row].size();
+        }
 
         if (!bShift)
             sel.flickerAtFront ? sel.R = pos : sel.L = pos;
@@ -579,6 +633,21 @@ void NXTextEditor::MoveDown(bool bShift, bool bPageDown)
 
             SelectionsOverlayCheckForKeyEvent(false);
         }
+    }
+
+    // 如果超出窗口边界，scrollY
+    float scrollY = ImGui::GetScrollY();
+    float scrollMaxY = ImGui::GetScrollMaxY();
+    float contentAreaHeight = ImGui::GetContentRegionAvail().y;
+    float newSelectHeight = (float)maxRow * m_charHeight;
+    float scrollBarHeight = scrollMaxY > 0.0f ? ImGui::GetStyle().ScrollbarSize : 0.0f;
+    if (newSelectHeight < scrollY)
+    {
+        ImGui::SetScrollY(newSelectHeight);
+    }
+    else if (newSelectHeight > scrollY + contentAreaHeight + scrollBarHeight)
+    {
+        ImGui::SetScrollY(std::min(newSelectHeight - contentAreaHeight + 2 * m_charHeight, scrollMaxY));
     }
 }
 
