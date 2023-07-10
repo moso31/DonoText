@@ -264,9 +264,8 @@ void NXTextEditor::RenderSelection(const SelectionInfo& selection)
     }
 
     // 绘制闪烁条 每秒钟闪烁一次
-    // 使用 ForegroundDrawList，确保闪烁条始终在选中状态矩形上面
     if (fmod(ImGui::GetTime() - m_flickerDt, 1.0f) < 0.5f)
-        ImGui::GetForegroundDrawList()->AddLine(flickerPos, ImVec2(flickerPos.x, flickerPos.y + m_charHeight), IM_COL32(255, 255, 0, 255), 1.0f);
+        drawList->AddLine(flickerPos, ImVec2(flickerPos.x, flickerPos.y + m_charHeight), IM_COL32(255, 255, 0, 255), 1.0f);
 }
 
 void NXTextEditor::SelectionsOverlayCheckForMouseEvent(bool bIsDoubleClick)
@@ -312,10 +311,15 @@ void NXTextEditor::SelectionsOverlayCheckForKeyEvent(bool bFlickerAtFront)
     {
         m_overlaySelectCheck.push_back({ selection.L, true, selection.flickerAtFront });
         m_overlaySelectCheck.push_back({ selection.R, false, selection.flickerAtFront });
-    }
 
-    // 按坐标排序
+        // 排序前将右坐标后移一格，确保将 sel1.R=sel2.L 这种坐标相同但不相交的情况也视作重叠。
+        m_overlaySelectCheck.back().value.col++;
+    }
     std::sort(m_overlaySelectCheck.begin(), m_overlaySelectCheck.end(), [](const SignedCoordinate& a, const SignedCoordinate& b) { return a.value < b.value; });
+
+    // 排完序需要再移动回来
+    for (auto& overlayCheck : m_overlaySelectCheck)
+        if (!overlayCheck.isLeft) overlayCheck.value.col--;
 
     Coordinate left, right;
     int leftSignCount = 0; // 遇左+1，遇右-1。
@@ -358,7 +362,40 @@ void NXTextEditor::SelectionsOverlayCheckForKeyEvent(bool bFlickerAtFront)
 
 void NXTextEditor::ScrollCheckForKeyEvent()
 {
+    // 此方法负责当屏幕外有 selection 选取变化时，跳转到该位置。
+    // 2023.7.11 暂跳转到 m_selections.back() 所在的位置。
+    // 屏幕内存在选区的情况下，此策略有很明显的手感问题，有待优化。
+    const auto& lastSelection = m_selections.back();
+    float lastRow = lastSelection.flickerAtFront ? lastSelection.L.row : lastSelection.R.row;
+    float lastCol = lastSelection.flickerAtFront ? lastSelection.L.col : lastSelection.R.col;
 
+    // 如果超出窗口边界，scrollY
+    float scrollY = ImGui::GetScrollY();
+    float scrollMaxY = ImGui::GetScrollMaxY();
+    float contentAreaHeight = ImGui::GetContentRegionAvail().y;
+    float newSelectHeight = lastRow * m_charHeight;
+    if (newSelectHeight < scrollY)
+    {
+        ImGui::SetScrollY(newSelectHeight);
+    }
+    else if (newSelectHeight > scrollY + contentAreaHeight - m_charHeight)
+    {
+        ImGui::SetScrollY(std::min(newSelectHeight - contentAreaHeight + m_charHeight, scrollMaxY));
+    }
+
+    // 如果超出窗口边界，scrollX
+    float scrollX = ImGui::GetScrollX();
+    float scrollMaxX = ImGui::GetScrollMaxX();
+    float contentAreaWidth = ImGui::GetContentRegionAvail().x;
+    float newSelectWidth = lastCol * m_charWidth;
+    if (newSelectWidth < scrollX)
+    {
+        ImGui::SetScrollX(newSelectWidth);
+    }
+    else if (newSelectWidth > scrollX + contentAreaWidth)
+    {
+        ImGui::SetScrollX(std::min(newSelectWidth - contentAreaWidth + 2 * m_charWidth, scrollMaxX));
+    }
 }
 
 void NXTextEditor::RenderTexts_OnMouseInputs()
@@ -573,8 +610,6 @@ void NXTextEditor::RenderTexts_OnKeyInputs()
 
 void NXTextEditor::MoveUp(bool bShift, bool bPageUp)
 {
-    int maxRow = 0;
-    int maxCol = 0;
     for (auto& sel : m_selections)
     {
         auto& pos = sel.flickerAtFront ? sel.L : sel.R;
@@ -584,9 +619,6 @@ void NXTextEditor::MoveUp(bool bShift, bool bPageUp)
             pos.row = 0;
             pos.col = 0;
         }
-
-        maxRow = std::max(maxRow, pos.row);
-        maxCol = std::max(maxCol, pos.col);
 
         if (!bShift)
             sel.flickerAtFront ? sel.R = pos : sel.L = pos;
@@ -602,35 +634,7 @@ void NXTextEditor::MoveUp(bool bShift, bool bPageUp)
         }
     }
 
-    // 如果超出窗口边界，scrollY
-    float scrollY = ImGui::GetScrollY();
-    float scrollMaxY = ImGui::GetScrollMaxY();
-    float contentAreaHeight = ImGui::GetContentRegionAvail().y;
-    float newSelectHeight = (float)maxRow * m_charHeight;
-    float scrollBarHeight = scrollMaxY > 0.0f ? ImGui::GetStyle().ScrollbarSize : 0.0f;
-    if (newSelectHeight < scrollY)
-    {
-        ImGui::SetScrollY(newSelectHeight);
-    }
-    else if (newSelectHeight > scrollY + contentAreaHeight + scrollBarHeight)
-    {
-        ImGui::SetScrollY(std::min(newSelectHeight - contentAreaHeight + 2 * m_charHeight, scrollMaxY));
-    }
-
-    // 如果超出窗口边界，scrollX
-    float scrollX = ImGui::GetScrollX();
-    float scrollMaxX = ImGui::GetScrollMaxX();
-    float contentAreaWidth = ImGui::GetContentRegionAvail().x;
-    float newSelectWidth = (float)maxCol * m_charWidth;
-    float scrollBarWidth = scrollMaxX > 0.0f ? ImGui::GetStyle().ScrollbarSize : 0.0f;
-    if (newSelectWidth < scrollX)
-    {
-        ImGui::SetScrollX(newSelectWidth);
-    }
-    else if (newSelectWidth > scrollX + contentAreaWidth + scrollBarWidth)
-    {
-        ImGui::SetScrollX(std::min(newSelectWidth - contentAreaWidth + 2 * m_charWidth, scrollMaxX));
-    }
+    ScrollCheckForKeyEvent();
 }
 
 void NXTextEditor::MoveDown(bool bShift, bool bPageDown)
@@ -669,30 +673,16 @@ void NXTextEditor::MoveDown(bool bShift, bool bPageDown)
     float scrollMaxY = ImGui::GetScrollMaxY();
     float contentAreaHeight = ImGui::GetContentRegionAvail().y;
     float newSelectHeight = (float)maxRow * m_charHeight;
-    float scrollBarHeight = scrollMaxY > 0.0f ? ImGui::GetStyle().ScrollbarSize : 0.0f;
     if (newSelectHeight < scrollY)
     {
         ImGui::SetScrollY(newSelectHeight);
     }
-    else if (newSelectHeight > scrollY + contentAreaHeight + scrollBarHeight)
+    else if (newSelectHeight > scrollY + contentAreaHeight - m_charHeight)
     {
-        ImGui::SetScrollY(std::min(newSelectHeight - contentAreaHeight + 2 * m_charHeight, scrollMaxY));
+        ImGui::SetScrollY(std::min(newSelectHeight - contentAreaHeight + m_charHeight, scrollMaxY));
     }
 
-    // 如果超出窗口边界，scrollX
-    float scrollX = ImGui::GetScrollX();
-    float scrollMaxX = ImGui::GetScrollMaxX();
-    float contentAreaWidth = ImGui::GetContentRegionAvail().x;
-    float newSelectWidth = (float)maxCol * m_charWidth;
-    float scrollBarWidth = scrollMaxX > 0.0f ? ImGui::GetStyle().ScrollbarSize : 0.0f;
-    if (newSelectWidth < scrollX)
-    {
-        ImGui::SetScrollX(newSelectWidth);
-    }
-    else if (newSelectWidth > scrollX + contentAreaWidth + scrollBarWidth)
-    {
-        ImGui::SetScrollX(std::min(newSelectWidth - contentAreaWidth + 2 * m_charWidth, scrollMaxX));
-    }
+    ScrollCheckForKeyEvent();
 }
 
 void NXTextEditor::MoveLeft(bool bShift, bool bCtrl, bool bHome)
@@ -745,30 +735,16 @@ void NXTextEditor::MoveLeft(bool bShift, bool bCtrl, bool bHome)
     float scrollMaxY = ImGui::GetScrollMaxY();
     float contentAreaHeight = ImGui::GetContentRegionAvail().y;
     float newSelectHeight = (float)maxRow * m_charHeight;
-    float scrollBarHeight = scrollMaxY > 0.0f ? ImGui::GetStyle().ScrollbarSize : 0.0f;
     if (newSelectHeight < scrollY)
     {
         ImGui::SetScrollY(newSelectHeight);
     }
-    else if (newSelectHeight > scrollY + contentAreaHeight + scrollBarHeight)
+    else if (newSelectHeight > scrollY + contentAreaHeight - m_charHeight)
     {
-        ImGui::SetScrollY(std::min(newSelectHeight - contentAreaHeight + 2 * m_charHeight, scrollMaxY));
+        ImGui::SetScrollY(std::min(newSelectHeight - contentAreaHeight + m_charHeight, scrollMaxY));
     }
 
-    // 如果超出窗口边界，scrollX
-    float scrollX = ImGui::GetScrollX();
-    float scrollMaxX = ImGui::GetScrollMaxX();
-    float contentAreaWidth = ImGui::GetContentRegionAvail().x;
-    float newSelectWidth = (float)maxCol * m_charWidth;
-    float scrollBarWidth = scrollMaxX > 0.0f ? ImGui::GetStyle().ScrollbarSize : 0.0f;
-    if (newSelectWidth < scrollX)
-    {
-        ImGui::SetScrollX(newSelectWidth);
-    }
-    else if (newSelectWidth > scrollX + contentAreaWidth + scrollBarWidth)
-    {
-        ImGui::SetScrollX(std::min(newSelectWidth - contentAreaWidth + 2 * m_charWidth, scrollMaxX));
-    }
+    ScrollCheckForKeyEvent();
 }
 
 void NXTextEditor::MoveRight(bool bShift, bool bCtrl, bool bEnd)
@@ -815,35 +791,7 @@ void NXTextEditor::MoveRight(bool bShift, bool bCtrl, bool bEnd)
         }
     }
 
-    // 如果超出窗口边界，scrollY
-    float scrollY = ImGui::GetScrollY();
-    float scrollMaxY = ImGui::GetScrollMaxY();
-    float contentAreaHeight = ImGui::GetContentRegionAvail().y;
-    float newSelectHeight = (float)maxRow * m_charHeight;
-    float scrollBarHeight = scrollMaxY > 0.0f ? ImGui::GetStyle().ScrollbarSize : 0.0f;
-    if (newSelectHeight < scrollY)
-    {
-        ImGui::SetScrollY(newSelectHeight);
-    }
-    else if (newSelectHeight > scrollY + contentAreaHeight + scrollBarHeight)
-    {
-        ImGui::SetScrollY(std::min(newSelectHeight - contentAreaHeight + 2 * m_charHeight, scrollMaxY));
-    }
-
-    // 如果超出窗口边界，scrollX
-    float scrollX = ImGui::GetScrollX();
-    float scrollMaxX = ImGui::GetScrollMaxX();
-    float contentAreaWidth = ImGui::GetContentRegionAvail().x;
-    float newSelectWidth = (float)maxCol * m_charWidth;
-    float scrollBarWidth = scrollMaxX > 0.0f ? ImGui::GetStyle().ScrollbarSize : 0.0f;
-    if (newSelectWidth < scrollX)
-    {
-        ImGui::SetScrollX(newSelectWidth);
-    }
-    else if (newSelectWidth > scrollX + contentAreaWidth + scrollBarWidth)
-    {
-        ImGui::SetScrollX(std::min(newSelectWidth - contentAreaWidth + 2 * m_charWidth, scrollMaxX));
-    }
+    ScrollCheckForKeyEvent();
 }
 
 bool NXTextEditor::IsVariableChar(const char& ch)
