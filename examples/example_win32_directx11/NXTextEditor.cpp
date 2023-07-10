@@ -366,14 +366,14 @@ void NXTextEditor::ScrollCheckForKeyEvent()
     // 2023.7.11 暂跳转到 m_selections.back() 所在的位置。
     // 屏幕内存在选区的情况下，此策略有很明显的手感问题，有待优化。
     const auto& lastSelection = m_selections.back();
-    float lastRow = lastSelection.flickerAtFront ? lastSelection.L.row : lastSelection.R.row;
-    float lastCol = lastSelection.flickerAtFront ? lastSelection.L.col : lastSelection.R.col;
+    int lastRow = lastSelection.flickerAtFront ? lastSelection.L.row : lastSelection.R.row;
+    int lastCol = lastSelection.flickerAtFront ? lastSelection.L.col : lastSelection.R.col;
 
     // 如果超出窗口边界，scrollY
     float scrollY = ImGui::GetScrollY();
     float scrollMaxY = ImGui::GetScrollMaxY();
     float contentAreaHeight = ImGui::GetContentRegionAvail().y;
-    float newSelectHeight = lastRow * m_charHeight;
+    float newSelectHeight = (float)lastRow * m_charHeight;
     if (newSelectHeight < scrollY)
     {
         ImGui::SetScrollY(newSelectHeight);
@@ -387,7 +387,7 @@ void NXTextEditor::ScrollCheckForKeyEvent()
     float scrollX = ImGui::GetScrollX();
     float scrollMaxX = ImGui::GetScrollMaxX();
     float contentAreaWidth = ImGui::GetContentRegionAvail().x;
-    float newSelectWidth = lastCol * m_charWidth;
+    float newSelectWidth = (float)lastCol * m_charWidth;
     if (newSelectWidth < scrollX)
     {
         ImGui::SetScrollX(newSelectWidth);
