@@ -204,12 +204,15 @@ void NXTextEditor::RenderSelection(const SelectionInfo& selection)
 
     if (bSingleLine)
     {
+        int linePosL = std::min(fromPos.col, (int)m_lines[fromPos.row].length());
+        int linePosR = std::min(toPos.col, (int)m_lines[toPos.row].length());
+
         // 行首坐标
         ImVec2 linePos(windowPos.x, windowPos.y + m_charHeight * fromPos.row - scrollY);
 
         // 绘制所选对象的选中状态矩形
-        ImVec2 selectStartPos(linePos.x + fromPos.col * m_charWidth - scrollX, linePos.y);
-        ImVec2 selectEndPos(linePos.x + toPos.col * m_charWidth - scrollX, linePos.y + m_charHeight); 
+        ImVec2 selectStartPos(linePos.x + linePosL * m_charWidth - scrollX, linePos.y);
+        ImVec2 selectEndPos(linePos.x + linePosR * m_charWidth - scrollX, linePos.y + m_charHeight);
         drawList->AddRectFilled(selectStartPos, selectEndPos, IM_COL32(100, 100, 0, 255));
 
         // 计算闪烁位置
@@ -220,14 +223,15 @@ void NXTextEditor::RenderSelection(const SelectionInfo& selection)
         // 多行文本除最后一行，其它行的选中矩形都向右增加一个字符长度
         float enterCharOffset = m_charWidth;
 
-        // 绘制首行，先确定首行字符长度
-        const size_t firstLineLength = m_lines[fromPos.row].length();
+        // 绘制首行，先确定首行字符坐标
+        int linePosR = (int)m_lines[fromPos.row].length();
+        int linePosL = std::min(fromPos.col, linePosR);
 
         // 行首坐标
         ImVec2 linePos(windowPos.x, windowPos.y + m_charHeight * fromPos.row - scrollY);
         // 绘制所选对象的选中状态矩形
-        ImVec2 selectStartPos(linePos.x + fromPos.col * m_charWidth - scrollX, linePos.y);
-        ImVec2 selectEndPos(linePos.x + firstLineLength * m_charWidth - scrollX, linePos.y + m_charHeight);
+        ImVec2 selectStartPos(linePos.x + linePosL * m_charWidth - scrollX, linePos.y);
+        ImVec2 selectEndPos(linePos.x + linePosR * m_charWidth - scrollX, linePos.y + m_charHeight);
         drawList->AddRectFilled(selectStartPos, ImVec2(selectEndPos.x + enterCharOffset, selectEndPos.y), IM_COL32(100, 100, 0, 255));
 
         // 如果是 B在前，A在后，则在文本开始处闪烁
@@ -244,13 +248,15 @@ void NXTextEditor::RenderSelection(const SelectionInfo& selection)
             drawList->AddRectFilled(selectStartPos, ImVec2(selectEndPos.x + enterCharOffset, selectEndPos.y), IM_COL32(100, 100, 0, 255));
         }
 
-        // 绘制尾行，先确定尾行字符长度
-        int lastLineLength = toPos.col;
+        // 绘制尾行，确定尾行字符坐标
+        linePosL = 0;
+        linePosR = std::min(toPos.col, (int)m_lines[toPos.row].length());
+
         // 行首坐标
         linePos = ImVec2(windowPos.x, windowPos.y + m_charHeight * toPos.row - scrollY);
         // 绘制所选对象的选中状态矩形
-        selectStartPos = ImVec2(linePos.x - scrollX, linePos.y);
-        selectEndPos = ImVec2(linePos.x + lastLineLength * m_charWidth - scrollX, linePos.y + m_charHeight);
+        selectStartPos = ImVec2(linePos.x - linePosL * m_charWidth - scrollX, linePos.y);
+        selectEndPos = ImVec2(linePos.x + linePosR * m_charWidth - scrollX, linePos.y + m_charHeight);
         drawList->AddRectFilled(selectStartPos, selectEndPos, IM_COL32(100, 100, 0, 255));
 
         // 如果是 A在前，B在后，则在文本末尾处闪烁
