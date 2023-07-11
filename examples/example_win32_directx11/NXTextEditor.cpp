@@ -568,15 +568,17 @@ void NXTextEditor::RenderTexts_OnKeyInputs()
         bool bKeyPageUpPressed = ImGui::IsKeyPressed(ImGuiKey_PageUp);
         bool bKeyPageDownPressed = ImGui::IsKeyPressed(ImGuiKey_PageDown);
 
-        if (!bAlt && (bKeyUpPressed || bKeyPageUpPressed))
+        bool bCtrlHomePressed = bCtrl && bKeyHomePressed;
+        bool bCtrlEndPressed = bCtrl && bKeyEndPressed;
+        if (!bAlt && (bKeyUpPressed || bKeyPageUpPressed || bCtrlHomePressed))
         {
-            MoveUp(bShift, bKeyPageUpPressed);
+            MoveUp(bShift, bKeyPageUpPressed, bCtrlHomePressed);
             m_bResetFlickerDt = true;
         }
 
-        else if (!bAlt && (bKeyDownPressed || bKeyPageDownPressed))
+        else if (!bAlt && (bKeyDownPressed || bKeyPageDownPressed || bCtrlEndPressed))
         {
-            MoveDown(bShift, bKeyPageDownPressed);
+            MoveDown(bShift, bKeyPageDownPressed, bCtrlEndPressed);
             m_bResetFlickerDt = true;
         }
 
@@ -608,12 +610,12 @@ void NXTextEditor::RenderTexts_OnKeyInputs()
     }
 }
 
-void NXTextEditor::MoveUp(bool bShift, bool bPageUp)
+void NXTextEditor::MoveUp(bool bShift, bool bPageUp, bool bCtrlHome)
 {
     for (auto& sel : m_selections)
     {
         auto& pos = sel.flickerAtFront ? sel.L : sel.R;
-        bPageUp ? pos.row -= 20 : pos.row--;
+        bCtrlHome ? pos.row = -1 : bPageUp ? pos.row -= 20 : pos.row--;
         if (pos.row < 0)
         {
             pos.row = 0;
@@ -637,14 +639,14 @@ void NXTextEditor::MoveUp(bool bShift, bool bPageUp)
     ScrollCheckForKeyEvent();
 }
 
-void NXTextEditor::MoveDown(bool bShift, bool bPageDown)
+void NXTextEditor::MoveDown(bool bShift, bool bPageDown, bool bCtrlEnd)
 {
     int maxRow = 0;
     int maxCol = 0;
     for (auto& sel : m_selections)
     {
         auto& pos = sel.flickerAtFront ? sel.L : sel.R;
-        bPageDown ? pos.row += 20 : pos.row++;
+        bCtrlEnd ? pos.row = (int)m_lines.size() : bPageDown ? pos.row += 20 : pos.row++;
         if (pos.row >= m_lines.size())
         {
             pos.row = (int)m_lines.size() - 1;

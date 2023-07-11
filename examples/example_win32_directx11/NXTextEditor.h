@@ -128,8 +128,8 @@ private:
     void RenderTexts_OnMouseInputs();
     void RenderTexts_OnKeyInputs();
 
-    void MoveUp(bool bShift, bool bPageUp);
-    void MoveDown(bool bShift, bool bPageDown);
+    void MoveUp(bool bShift, bool bPageUp, bool bCtrlHome);
+    void MoveDown(bool bShift, bool bPageDown, bool bCtrlEnd);
     void MoveLeft(bool bShift, bool bCtrl, bool bHome);
     void MoveRight(bool bShift, bool bCtrl, bool bEnd);
 
