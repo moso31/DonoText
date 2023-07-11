@@ -124,7 +124,9 @@ void NXTextEditor::Backspace()
 {
     std::sort(m_selections.begin(), m_selections.end(), [](const SelectionInfo& a, const SelectionInfo& b) { return a.R < b.R; });
 
-    for (int i = 0; i < m_selections.size(); i++)
+    // 按行列号从后往前挨个处理，复杂度O(selection^2)
+    // 每处理一个 selection，都需要补偿计算之前算过的所有 selection 的位置
+    for (int i = m_selections.size() - 1; i >= 0; i--)
     {
         auto& selection = m_selections[i];
         const auto& L = selection.L;
@@ -138,6 +140,15 @@ void NXTextEditor::Backspace()
             {
                 line.erase(line.begin() + L.col - 1);
                 selection.L = selection.R = Coordinate(L.row, L.col - 1);
+
+                // 补偿计算
+                for (int j = i + 1; j < m_selections.size(); j++)
+                {
+                    auto& sel = m_selections[j];
+                    if (sel.L.row != L.row) break; // 单行时只需处理同行内后面的文本
+                    sel.L.col--;
+                    sel.R.col--;
+                }
             }
             else if (L.row > 0) // 跨行
             {
@@ -148,6 +159,14 @@ void NXTextEditor::Backspace()
                 m_lines.erase(m_lines.begin() + L.row);
 
                 selection.L = selection.R = Coordinate(L.row - 1, lastSize);
+
+                // 补偿计算
+                for (int j = i + 1; j < m_selections.size(); j++)
+                {
+                    auto& sel = m_selections[j];
+                    sel.L.row--;
+                    sel.R.row--;
+                }
             }
         }
         else
@@ -157,6 +176,16 @@ void NXTextEditor::Backspace()
             {
                 auto& line = m_lines[L.row];
                 line.erase(line.begin() + L.col, line.begin() + R.col);
+
+                // 补偿计算
+                for (int j = i + 1; j < m_selections.size(); j++)
+                {
+                    auto& sel = m_selections[j];
+                    int shiftLength = CalcSelectionLength(selection);
+                    if (sel.L.row != L.row) break; // 单行时只需处理同行内后面的文本
+                    sel.L.col -= shiftLength;
+                    sel.R.col -= shiftLength;
+                }
             }
             else // 多行
             {
@@ -175,12 +204,38 @@ void NXTextEditor::Backspace()
 
                 // 删除中间行
                 m_lines.erase(std::max(m_lines.begin(), m_lines.begin() + L.row + 1), std::min(m_lines.begin() + R.row + 1, m_lines.end()));
+
+                // 补偿计算
+                bool bSameLine = true;
+                for (int j = i + 1; j < m_selections.size(); j++)
+                {
+                    auto& sel = m_selections[j];
+                    if (sel.L.row != R.row) bSameLine = false;
+                    if (bSameLine)
+                    {
+                        // 后续选区如果在同一行
+                        int shiftLength = R.col - L.col;
+                        sel.L.row = L.row;
+                        sel.L.col -= shiftLength;
+                        sel.R = sel.L;
+                    }
+                    else
+                    {
+                        // 后续选区如果不在同一行
+                        int shiftLength = R.row - L.row;
+                        sel.L.row -= shiftLength;
+                        sel.R.row -= shiftLength;
+                    }
+                }
             }
 
             // 更新光标位置
             selection.L = selection.R = Coordinate(L.row, L.col);
         }
     }
+
+    SelectionsOverlayCheckForKeyEvent(false);
+    ScrollCheckForKeyEvent();
 }
 
 void NXTextEditor::Render_MainLayer()
