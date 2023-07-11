@@ -106,7 +106,7 @@ public:
     void ClearSelection();
 
 public:
-    void Enter(ImWchar c);
+    void Enter(char c);
     void Backspace();
 
 private:
@@ -121,6 +121,7 @@ private:
     void SelectionsOverlayCheckForMouseEvent(bool bIsDoubleClick);
     void SelectionsOverlayCheckForKeyEvent(bool bFlickerAtFront);
     void ScrollCheckForKeyEvent();
+    int CalcSelectionLength(const SelectionInfo& selection);
 
 private:
     void Render_OnMouseInputs();
@@ -130,8 +131,11 @@ private:
 
     void MoveUp(bool bShift, bool bPageUp, bool bCtrlHome);
     void MoveDown(bool bShift, bool bPageDown, bool bCtrlEnd);
-    void MoveLeft(bool bShift, bool bCtrl, bool bHome);
-    void MoveRight(bool bShift, bool bCtrl, bool bEnd);
+    void MoveLeft(bool bShift, bool bCtrl, bool bHome, int size);
+    void MoveRight(bool bShift, bool bCtrl, bool bEnd, int size);
+
+    void MoveLeft(SelectionInfo& selection, bool bShift, bool bCtrl, bool bHome, int size);
+    void MoveRight(SelectionInfo& selection, bool bShift, bool bCtrl, bool bEnd, int size);
 
     bool IsVariableChar(const char& ch);
 

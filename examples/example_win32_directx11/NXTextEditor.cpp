@@ -82,12 +82,105 @@ void NXTextEditor::ClearSelection()
     m_selections.clear();
 }
 
-void NXTextEditor::Enter(ImWchar c)
+void NXTextEditor::Enter(char c)
 {
+    for (auto& selection : m_selections)
+    {
+        const auto& L = selection.L;
+        const auto& R = selection.R;
+
+        if (L == R) 
+        {
+            // 无选中：直接插入
+            m_lines[L.row].insert(m_lines[L.row].begin() + L.col, c);
+        }
+        else if (L.row == R.row)
+        {
+            // 选中一行：擦除选中区 + 插入字符
+            m_lines[L.row].erase(m_lines[L.row].begin() + L.col, m_lines[L.row].begin() + R.col);
+            m_lines[L.row].insert(m_lines[L.row].begin() + L.col, c);
+        }
+        else
+        {
+            // 选中多行：擦除选中区 + 插入字符
+            // 删除左侧行的右侧部分
+            m_lines[L.row].erase(m_lines[L.row].begin() + L.col, m_lines[L.row].end());
+            // 插入字符
+            m_lines[L.row].push_back(c);
+            // 删除右侧行的左侧部分
+            m_lines[R.row].erase(m_lines[R.row].begin(), m_lines[R.row].begin() + R.col);
+            // 将右侧行的内容合并到左侧行
+            m_lines[L.row].append(m_lines[R.row]);
+            // 删除中间行
+            m_lines.erase(m_lines.begin() + L.row + 1, m_lines.begin() + R.row + 1);
+        }
+
+        // 更新光标位置
+        selection.L = selection.R = Coordinate(L.row, L.col + 1);
+    }
 }
 
 void NXTextEditor::Backspace()
 {
+    std::sort(m_selections.begin(), m_selections.end(), [](const SelectionInfo& a, const SelectionInfo& b) { return a.R < b.R; });
+
+    for (int i = 0; i < m_selections.size(); i++)
+    {
+        auto& selection = m_selections[i];
+        const auto& L = selection.L;
+        const auto& R = selection.R;
+
+        if (L == R)
+        {
+            auto& line = m_lines[L.row];
+            // 无选区：删除上一个字符，光标退一格
+            if (L.col > 0) // 单行
+            {
+                line.erase(line.begin() + L.col - 1);
+                selection.L = selection.R = Coordinate(L.row, L.col - 1);
+            }
+            else if (L.row > 0) // 跨行
+            {
+                auto& lastLine = m_lines[L.row - 1];
+                int lastSize = (int)lastLine.length();
+
+                lastLine.append(line);
+                m_lines.erase(m_lines.begin() + L.row);
+
+                selection.L = selection.R = Coordinate(L.row - 1, lastSize);
+            }
+        }
+        else
+        {
+            // 有选区：删除选区中的所有内容
+            if (L.row == R.row) // 单行
+            {
+                auto& line = m_lines[L.row];
+                line.erase(line.begin() + L.col, line.begin() + R.col);
+            }
+            else // 多行
+            {
+                // 删除左侧行的右侧部分
+                auto& lineL = m_lines[L.row];
+                auto startErasePos = std::min(lineL.begin() + L.col, lineL.end());
+                lineL.erase(startErasePos, lineL.end());
+
+                // 删除右侧行的左侧部分
+                auto& lineR = m_lines[R.row];
+                auto endErasePos = std::min(lineR.begin() + R.col, lineR.end());
+                lineR.erase(lineR.begin(), endErasePos);
+
+                // 将右侧行的内容合并到左侧行
+                lineL.append(lineR);
+
+                // 删除中间行
+                m_lines.erase(std::max(m_lines.begin(), m_lines.begin() + L.row + 1), std::min(m_lines.begin() + R.row + 1, m_lines.end()));
+            }
+
+            // 更新光标位置
+            selection.L = selection.R = Coordinate(L.row, L.col);
+        }
+    }
 }
 
 void NXTextEditor::Render_MainLayer()
@@ -323,7 +416,7 @@ void NXTextEditor::SelectionsOverlayCheckForKeyEvent(bool bFlickerAtFront)
 
     Coordinate left, right;
     int leftSignCount = 0; // 遇左+1，遇右-1。
-    bool overlayed = false; // 当 leftSignCount>1 时，说明有重叠产生，使用此值记录
+    bool overlayed = false; // 当 leftSignCount >= 2 时，说明有重叠产生，此时令 overlayed = true
 
     // 检测重叠，如果有重叠的selection，去掉
     m_selections.clear();
@@ -395,6 +488,31 @@ void NXTextEditor::ScrollCheckForKeyEvent()
     else if (newSelectWidth > scrollX + contentAreaWidth)
     {
         ImGui::SetScrollX(std::min(newSelectWidth - contentAreaWidth + 2 * m_charWidth, scrollMaxX));
+    }
+}
+
+int NXTextEditor::CalcSelectionLength(const SelectionInfo& selection)
+{
+    const auto& L = selection.L;
+    const auto& R = selection.R;
+
+    if (L.row == R.row)
+    {
+        auto& line = m_lines[L.row];
+        int actualLcol = std::min(L.col, (int)line.size());
+        int actualRcol = std::min(R.col, (int)line.size());
+        return actualRcol - actualLcol;
+    }
+    else
+    {
+        auto& lineL = m_lines[L.row];
+        auto& lineR = m_lines[R.row];
+        int actualLcol = std::min(L.col, (int)lineL.size());
+        int actualRcol = std::min(R.col, (int)lineR.size());
+        int length = (int)lineL.size() - actualLcol + actualRcol;
+        for (int i = L.row + 1; i < R.row - 1; i++)
+            length += (int)m_lines[i].size();
+        return length;
     }
 }
 
@@ -584,23 +702,38 @@ void NXTextEditor::RenderTexts_OnKeyInputs()
 
         else if (!bAlt && (bKeyLeftPressed || bKeyHomePressed))
         {
-            MoveLeft(bShift, bCtrl, bKeyHomePressed);
+            MoveLeft(bShift, bCtrl, bKeyHomePressed, 1);
             m_bResetFlickerDt = true;
         }
 
         else if (!bAlt && (bKeyRightPressed || bKeyEndPressed))
         {
-            MoveRight(bShift, bCtrl, bKeyEndPressed);
+            MoveRight(bShift, bCtrl, bKeyEndPressed, 1);
             m_bResetFlickerDt = true;
         }
 
         if (!io.InputQueueCharacters.empty())
         {
-            for (const auto& c : io.InputQueueCharacters)
+            for (const auto& wc : io.InputQueueCharacters)
             {
-                if (c != 0 && (c == '\n' || c >= 32))
+                auto c = static_cast<char>(wc);
+                if (wc != 0 && wc >= 32)
                 {
                     Enter(c);
+                    m_bResetFlickerDt = true;
+                }
+                else if (wc == '\t') // tab
+                {
+                    int tabSize = 4;
+                    for (int i = 0; i < tabSize; ++i)
+                    {
+                        Enter(' ');
+                        m_bResetFlickerDt = true;
+                    }
+                }
+                else if (wc == 8) // backspace
+                {
+                    Backspace();
                     m_bResetFlickerDt = true;
                 }
             }
@@ -631,18 +764,15 @@ void NXTextEditor::MoveUp(bool bShift, bool bPageUp, bool bCtrlHome)
                 std::swap(sel.L, sel.R);
                 sel.flickerAtFront = true;
             }
-
-            SelectionsOverlayCheckForKeyEvent(true);
         }
     }
 
+    SelectionsOverlayCheckForKeyEvent(true);
     ScrollCheckForKeyEvent();
 }
 
 void NXTextEditor::MoveDown(bool bShift, bool bPageDown, bool bCtrlEnd)
 {
-    int maxRow = 0;
-    int maxCol = 0;
     for (auto& sel : m_selections)
     {
         auto& pos = sel.flickerAtFront ? sel.L : sel.R;
@@ -653,9 +783,6 @@ void NXTextEditor::MoveDown(bool bShift, bool bPageDown, bool bCtrlEnd)
             pos.col = (int)m_lines[pos.row].size();
         }
 
-        maxRow = std::max(maxRow, pos.row);
-        maxCol = std::max(maxCol, pos.col);
-
         if (!bShift)
             sel.flickerAtFront ? sel.R = pos : sel.L = pos;
         else
@@ -665,135 +792,116 @@ void NXTextEditor::MoveDown(bool bShift, bool bPageDown, bool bCtrlEnd)
                 std::swap(sel.L, sel.R);
                 sel.flickerAtFront = false;
             }
-
-            SelectionsOverlayCheckForKeyEvent(false);
         }
     }
 
-    // 如果超出窗口边界，scrollY
-    float scrollY = ImGui::GetScrollY();
-    float scrollMaxY = ImGui::GetScrollMaxY();
-    float contentAreaHeight = ImGui::GetContentRegionAvail().y;
-    float newSelectHeight = (float)maxRow * m_charHeight;
-    if (newSelectHeight < scrollY)
-    {
-        ImGui::SetScrollY(newSelectHeight);
-    }
-    else if (newSelectHeight > scrollY + contentAreaHeight - m_charHeight)
-    {
-        ImGui::SetScrollY(std::min(newSelectHeight - contentAreaHeight + m_charHeight, scrollMaxY));
-    }
-
+    SelectionsOverlayCheckForKeyEvent(false);
     ScrollCheckForKeyEvent();
 }
 
-void NXTextEditor::MoveLeft(bool bShift, bool bCtrl, bool bHome)
+void NXTextEditor::MoveLeft(bool bShift, bool bCtrl, bool bHome, int size)
 {
-    int maxRow = 0;
-    int maxCol = 0;
-    for (auto& sel : m_selections)
-    {
-        auto& pos = sel.flickerAtFront ? sel.L : sel.R;
-        pos.col = std::min(pos.col, (int)m_lines[pos.row].size());
-        if (bHome) pos.col = 0;
-        else if (pos.col > 0)
-        {
-            pos.col--;
-            if (bCtrl)
-            {
-                while (pos.col > 0 && !IsVariableChar(m_lines[pos.row][pos.col])) pos.col--;
-                if (pos.col > 0)
-                {
-                    while (pos.col > 0 && IsVariableChar(m_lines[pos.row][pos.col])) pos.col--;
-                    pos.col++;
-                }
-            }
-        }
-        else if (pos.row > 0)
-        {
-            pos.row--;
-            pos.col = (int)m_lines[pos.row].size();
-        }
-
-        maxRow = std::max(maxRow, pos.row);
-        maxCol = std::max(maxCol, pos.col);
-
-        if (!bShift)
-            sel.flickerAtFront ? sel.R = pos : sel.L = pos;
-        else
-        {
-            if (sel.R < sel.L)
-            {
-                std::swap(sel.L, sel.R);
-                sel.flickerAtFront = true;
-            }
-
-            SelectionsOverlayCheckForKeyEvent(true);
-        }
-    }
-
-    // 如果超出窗口边界，scrollY
-    float scrollY = ImGui::GetScrollY();
-    float scrollMaxY = ImGui::GetScrollMaxY();
-    float contentAreaHeight = ImGui::GetContentRegionAvail().y;
-    float newSelectHeight = (float)maxRow * m_charHeight;
-    if (newSelectHeight < scrollY)
-    {
-        ImGui::SetScrollY(newSelectHeight);
-    }
-    else if (newSelectHeight > scrollY + contentAreaHeight - m_charHeight)
-    {
-        ImGui::SetScrollY(std::min(newSelectHeight - contentAreaHeight + m_charHeight, scrollMaxY));
-    }
-
+    for (auto& sel : m_selections) MoveLeft(sel, bShift, bCtrl, bHome, size);
+    SelectionsOverlayCheckForKeyEvent(true);
     ScrollCheckForKeyEvent();
 }
 
-void NXTextEditor::MoveRight(bool bShift, bool bCtrl, bool bEnd)
+void NXTextEditor::MoveRight(bool bShift, bool bCtrl, bool bEnd, int size)
 {
-    int maxRow = 0;
-    int maxCol = 0;
-    for (auto& sel : m_selections)
+    for (auto& sel : m_selections) MoveRight(sel, bShift, bCtrl, bEnd, size);
+    SelectionsOverlayCheckForKeyEvent(false);
+    ScrollCheckForKeyEvent();
+}
+
+void NXTextEditor::MoveLeft(SelectionInfo& sel, bool bShift, bool bCtrl, bool bHome, int size)
+{
+    auto& pos = sel.flickerAtFront ? sel.L : sel.R;
+    pos.col = std::min(pos.col, (int)m_lines[pos.row].size());
+    if (bHome) pos.col = 0;
+    else
     {
-        auto& pos = sel.flickerAtFront ? sel.L : sel.R;
-        pos.col = std::min(pos.col, (int)m_lines[pos.row].size());
-        if (bEnd) pos.col = (int)m_lines[pos.row].size();
-        else if (pos.col < m_lines[pos.row].size())
+        while (size > 0)
         {
-            pos.col++;
-            if (bCtrl)
+            if (pos.col > 0)
             {
-                while (pos.col < m_lines[pos.row].size() && !IsVariableChar(m_lines[pos.row][pos.col])) pos.col++;
-                if (pos.col < m_lines[pos.row].size())
+                int newCol = std::max(pos.col - size, 0);
+                size -= pos.col - newCol;
+                pos.col = newCol;
+
+                if (bCtrl)
                 {
-                    while (pos.col < m_lines[pos.row].size() && IsVariableChar(m_lines[pos.row][pos.col])) pos.col++;
+                    while (pos.col > 0 && !IsVariableChar(m_lines[pos.row][pos.col])) pos.col--;
+                    if (pos.col > 0)
+                    {
+                        while (pos.col > 0 && IsVariableChar(m_lines[pos.row][pos.col])) pos.col--;
+                        pos.col++;
+                    }
                 }
             }
-        }
-        else if (pos.row < m_lines.size() - 1)
-        {
-            pos.row++;
-            pos.col = 0;
-        }
-
-        maxRow = std::max(maxRow, pos.row);
-        maxCol = std::max(maxCol, pos.col);
-
-        if (!bShift)
-            sel.flickerAtFront ? sel.R = pos : sel.L = pos;
-        else
-        {
-            if (sel.L > sel.R)
+            else if (pos.row > 0)
             {
-                std::swap(sel.L, sel.R);
-                sel.flickerAtFront = false;
+                pos.row--;
+                pos.col = (int)m_lines[pos.row].size();
             }
-
-            SelectionsOverlayCheckForKeyEvent(false);
+            else break;
         }
     }
 
-    ScrollCheckForKeyEvent();
+    if (!bShift)
+        sel.flickerAtFront ? sel.R = pos : sel.L = pos;
+    else
+    {
+        if (sel.R < sel.L)
+        {
+            std::swap(sel.L, sel.R);
+            sel.flickerAtFront = true;
+        }
+    }
+}
+
+void NXTextEditor::MoveRight(SelectionInfo& sel, bool bShift, bool bCtrl, bool bEnd, int size)
+{
+    auto& pos = sel.flickerAtFront ? sel.L : sel.R;
+    pos.col = std::min(pos.col, (int)m_lines[pos.row].size());
+    if (bEnd) pos.col = (int)m_lines[pos.row].size();
+    else
+    {
+        while (size)
+        {
+            if (pos.col < m_lines[pos.row].size())
+            {
+                int newCol = std::min(pos.col + size, (int)m_lines[pos.row].size());
+                size -= newCol - pos.col;
+                pos.col = newCol;
+
+                if (bCtrl)
+                {
+                    while (pos.col < m_lines[pos.row].size() && !IsVariableChar(m_lines[pos.row][pos.col])) pos.col++;
+                    if (pos.col < m_lines[pos.row].size())
+                    {
+                        while (pos.col < m_lines[pos.row].size() && IsVariableChar(m_lines[pos.row][pos.col])) pos.col++;
+                    }
+                }
+            }
+            else if (pos.row < m_lines.size() - 1)
+            {
+                pos.row++;
+                pos.col = 0;
+            }
+            else break;
+        }
+    }
+
+    if (!bShift)
+        sel.flickerAtFront ? sel.R = pos : sel.L = pos;
+    else
+    {
+        if (sel.L > sel.R)
+        {
+            std::swap(sel.L, sel.R);
+            sel.flickerAtFront = false;
+        }
+    }
 }
 
 bool NXTextEditor::IsVariableChar(const char& ch)
