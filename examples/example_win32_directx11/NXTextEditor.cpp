@@ -174,9 +174,10 @@ void NXTextEditor::Enter(const std::vector<std::vector<std::string>>& strArray)
                 const auto& strLine = str[lineIdx];
                 if (allLineIdx == 0)
                 {
+                    int cutIdx = std::min(L.col, (int)line.size());
                     // 如果是第一段的第一行，在光标处截断原始字符串，在前半段后面插入新文本。同时保留后半段。
-                    std::string strPart1 = line.substr(0, L.col);
-                    strPart2 = line.substr(L.col);
+                    std::string strPart1 = line.substr(0, cutIdx);
+                    strPart2 = line.substr(cutIdx);
                     line = strPart1 + strLine;
                 }
                 else
@@ -232,7 +233,7 @@ void NXTextEditor::Enter(const std::vector<std::vector<std::string>>& strArray)
     ScrollCheckForKeyEvent();
 }
 
-void NXTextEditor::Backspace(bool IsDelete, bool bCtrl)
+void NXTextEditor::Backspace(bool bDelete, bool bCtrl)
 {
     std::sort(m_selections.begin(), m_selections.end(), [](const SelectionInfo& a, const SelectionInfo& b) { return a.R < b.R; });
 
@@ -246,43 +247,70 @@ void NXTextEditor::Backspace(bool IsDelete, bool bCtrl)
 
         if (L == R)
         {
-            auto& line = m_lines[L.row];
             // 无选区：删除上一个字符，光标退一格
-            if (L.col > 0) // 单行
-            {
-                int eraseSize = 1;
+            auto& line = m_lines[L.row];
 
-                if (bCtrl)
+            bool bNeedCombineLastLine = (L.row > 0 && L.col == 0 && !bDelete); // 需要和上一行合并：位于列首，且按了backspace；
+            bool bNeedCombineNextLine = (L.row < m_lines.size() - 1 && L.col == line.size() && bDelete); // 需要和下一行合并：位于列尾，且按了delete；
+            bool bNeedCombineLines = bNeedCombineLastLine || bNeedCombineNextLine;
+
+            if (!bNeedCombineLines)
+            {
+                int eraseSize = 1; // 按字符删除
+                if (bCtrl) // 按单词删除
                 {
-                    // 按单词删除
-                    int pos = L.col - 1;
-                    while (pos && line[pos - 1] == ' ') pos--;
-                    while (pos && line[pos - 1] != ' ') pos--;
-                    eraseSize = std::max(0, L.col - pos);
+                    int pos = L.col;
+                    if (!bDelete) // ctrl+backspace
+                    {
+                        while (pos > 0 && line[pos - 1] == ' ') pos--;
+                        while (pos > 0 && line[pos - 1] != ' ') pos--;
+                        eraseSize = std::max(0, L.col - pos);
+                    }
+                    else // ctrl+delete
+                    {
+                        while (pos < line.size() && line[pos] == ' ') pos++;
+                        while (pos < line.size() && line[pos] != ' ') pos++;
+                        eraseSize = std::max(0, pos - L.col);
+                    }
                 }
 
-                int erasePos = std::min(L.col - eraseSize, (int)line.size());
-                line.erase(line.begin() + erasePos, line.begin() + erasePos + eraseSize);
-                selection.L = selection.R = Coordinate(L.row, erasePos);
+                if (!bDelete)
+                {
+                    int erasePos = std::min(L.col - eraseSize, (int)line.size());
+                    line.erase(line.begin() + erasePos, line.begin() + L.col);
+                    selection.L = selection.R = Coordinate(L.row, erasePos);
+                }
+                else
+                {
+                    int erasePos = std::min(L.col + eraseSize, (int)line.size());
+                    line.erase(line.begin() + L.col, line.begin() + erasePos);
+                }
 
                 // 补偿计算
                 for (int j = i + 1; j < m_selections.size(); j++)
                 {
                     auto& sel = m_selections[j];
                     if (sel.L.row != L.row) break; // 单行时只需处理同行内后面的文本
-                    sel.L.col--;
-                    sel.R.col--;
+                    sel.L.col -= eraseSize;
+                    sel.R.col -= eraseSize;
                 }
             }
-            else if (L.row > 0) // 跨行
+            else // 跨行
             {
-                auto& lastLine = m_lines[L.row - 1];
-                int lastSize = (int)lastLine.length();
+                if (bNeedCombineLastLine)
+                {
+                    auto& lastLine = m_lines[L.row - 1];
+                    lastLine.append(line);
+                    m_lines.erase(m_lines.begin() + L.row);
 
-                lastLine.append(line);
-                m_lines.erase(m_lines.begin() + L.row);
-
-                selection.L = selection.R = Coordinate(L.row - 1, lastSize);
+                    selection.L = selection.R = Coordinate(L.row - 1, (int)lastLine.length());
+                }
+                else if (bNeedCombineNextLine)
+                {
+                    auto& nextLine = m_lines[L.row + 1];
+                    line.append(nextLine);
+                    m_lines.erase(m_lines.begin() + L.row + 1);
+                }
 
                 // 补偿计算
                 for (int j = i + 1; j < m_selections.size(); j++)
@@ -907,6 +935,12 @@ void NXTextEditor::RenderTexts_OnKeyInputs()
             m_bResetFlickerDt = true;
         }
 
+        else if (bDeletePressed)
+        {
+            Backspace(bDeletePressed, bCtrl);
+            m_bResetFlickerDt = true;
+        }
+
         if (!io.InputQueueCharacters.empty())
         {
             for (const auto& wc : io.InputQueueCharacters)
@@ -932,10 +966,10 @@ void NXTextEditor::RenderTexts_OnKeyInputs()
                     Enter({ {""}, {""} });
                     m_bResetFlickerDt = true;
                 }
-                else if (wc == 8 || wc == 127 || bDeletePressed) // backspace, ctrl+backspace, delete
+                else if (wc == 8 || wc == 127) // backspace, ctrl+backspace, delete
                 {
                     // wc == 127: ctrl+backspace，需特殊处理
-                    Backspace(bDeletePressed, wc == 127 || bCtrl);
+                    Backspace(bDeletePressed, wc == 127);
                     m_bResetFlickerDt = true;
                 }
             }
