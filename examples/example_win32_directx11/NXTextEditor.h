@@ -107,7 +107,7 @@ public:
 
 public:
     void Enter(const std::vector<std::vector<std::string>>& strArray);
-    void Backspace();
+    void Backspace(bool IsDelete, bool bCtrl);
 
 private:
     void Render_MainLayer();

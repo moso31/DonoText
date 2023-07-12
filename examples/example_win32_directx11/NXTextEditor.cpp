@@ -232,7 +232,7 @@ void NXTextEditor::Enter(const std::vector<std::vector<std::string>>& strArray)
     ScrollCheckForKeyEvent();
 }
 
-void NXTextEditor::Backspace()
+void NXTextEditor::Backspace(bool IsDelete, bool bCtrl)
 {
     std::sort(m_selections.begin(), m_selections.end(), [](const SelectionInfo& a, const SelectionInfo& b) { return a.R < b.R; });
 
@@ -250,8 +250,19 @@ void NXTextEditor::Backspace()
             // 无选区：删除上一个字符，光标退一格
             if (L.col > 0) // 单行
             {
-                int erasePos = std::min(L.col - 1, (int)line.size());
-                line.erase(line.begin() + erasePos);
+                int eraseSize = 1;
+
+                if (bCtrl)
+                {
+                    // 按单词删除
+                    int pos = L.col - 1;
+                    while (pos && line[pos - 1] == ' ') pos--;
+                    while (pos && line[pos - 1] != ' ') pos--;
+                    eraseSize = std::max(0, L.col - pos);
+                }
+
+                int erasePos = std::min(L.col - eraseSize, (int)line.size());
+                line.erase(line.begin() + erasePos, line.begin() + erasePos + eraseSize);
                 selection.L = selection.R = Coordinate(L.row, erasePos);
 
                 // 补偿计算
@@ -867,6 +878,8 @@ void NXTextEditor::RenderTexts_OnKeyInputs()
         bool bKeyEndPressed = ImGui::IsKeyPressed(ImGuiKey_End);
         bool bKeyPageUpPressed = ImGui::IsKeyPressed(ImGuiKey_PageUp);
         bool bKeyPageDownPressed = ImGui::IsKeyPressed(ImGuiKey_PageDown);
+        bool bDeletePressed = ImGui::IsKeyPressed(ImGuiKey_Delete);
+        bool bInsertPressed = ImGui::IsKeyDown(ImGuiKey_Insert);
 
         bool bCtrlHomePressed = bCtrl && bKeyHomePressed;
         bool bCtrlEndPressed = bCtrl && bKeyEndPressed;
@@ -899,10 +912,10 @@ void NXTextEditor::RenderTexts_OnKeyInputs()
             for (const auto& wc : io.InputQueueCharacters)
             {
                 auto c = static_cast<char>(wc);
-                if (wc != 0 && wc >= 32)
+                if (wc >= 32 && wc < 127)
                 {
-                    //Enter({ {{c}} });
-                    Enter({ {"If it looks like food,", "it is not good food", "--senpai810"}, {"114 514", "1919810", "feichangdexinxian", "SOGOKUOISHII", "Desu!"} });
+                    Enter({{{c}}});
+                    //Enter({ {"If it looks like food,", "it is not good food", "--senpai810"}, {"114 514", "1919810", "feichangdexinxian", "SOGOKUOISHII", "Desu!"} });
                     m_bResetFlickerDt = true;
                 }
                 else if (wc == '\t') // tab
@@ -914,9 +927,15 @@ void NXTextEditor::RenderTexts_OnKeyInputs()
                         m_bResetFlickerDt = true;
                     }
                 }
-                else if (wc == 8) // backspace
+                else if (wc == 13) // enter
                 {
-                    Backspace();
+                    Enter({ {""}, {""} });
+                    m_bResetFlickerDt = true;
+                }
+                else if (wc == 8 || wc == 127 || bDeletePressed) // backspace, ctrl+backspace, delete
+                {
+                    // wc == 127: ctrl+backspace，需特殊处理
+                    Backspace(bDeletePressed, wc == 127 || bCtrl);
                     m_bResetFlickerDt = true;
                 }
             }
