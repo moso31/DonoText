@@ -6,8 +6,8 @@
 NXTextEditor::NXTextEditor()
 {
 	// 逐行读取某个文件的文本信息 
-	std::ifstream file("..\\..\\imgui_demo.cpp");
-	//std::ifstream file("..\\..\\license.txt");
+	//std::ifstream file("..\\..\\imgui_demo.cpp");
+	std::ifstream file("..\\..\\license.txt");
     //std::ifstream file("D:\\Users\\Administrator\\Source\\Repos\\DonoText\\imgui_demo.cpp");
 
 	// 逐行读取文件内容到 m_lines 
@@ -29,14 +29,9 @@ void NXTextEditor::Init()
     m_charWidth = fontSize.x;
     m_charHeight = ImGui::GetTextLineHeightWithSpacing(); // fontSize.y + style.ItemSpacing;
 
-    // 记录行号文本能达到的最大宽度
-    m_lineNumberWidth = m_charWidth * std::to_string(m_lines.size()).length();
-
-    m_lineNumberWidthWithPaddingX = m_lineNumberWidth + m_lineNumberPaddingX * 2.0f;
-
-    // 行号矩形 - 文本 之间留一个4px的空
-    float paddingX = 4.0f;
-    m_lineTextStartX = m_lineNumberWidthWithPaddingX + paddingX;
+    // 行号至少有两位的宽度
+    m_maxLineNumber = 99;
+    CalcLineNumberRectWidth();
 }
 
 void NXTextEditor::Render()
@@ -45,6 +40,13 @@ void NXTextEditor::Render()
     {
         m_flickerDt = ImGui::GetTime();
         m_bResetFlickerDt = false;
+    }
+
+    size_t newLineNumber = std::max(m_maxLineNumber, m_lines.size());
+    if (m_maxLineNumber < newLineNumber)
+    {
+        m_maxLineNumber = newLineNumber;
+        CalcLineNumberRectWidth(); // 行号超出渲染矩阵范围时，重新计算渲染矩阵的宽度
     }
 
     //ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
@@ -82,42 +84,152 @@ void NXTextEditor::ClearSelection()
     m_selections.clear();
 }
 
-void NXTextEditor::Enter(char c)
+void NXTextEditor::Enter(const std::vector<std::vector<std::string>>& strArray)
 {
-    for (auto& selection : m_selections)
+    // 按行列号顺序排序
+    std::sort(m_selections.begin(), m_selections.end(), [](const SelectionInfo& a, const SelectionInfo& b) { return a.R < b.R; });
+
+    // 从后往前挨个处理，复杂度O(selection^2)
+    // 每处理一个 selection，都需要补偿计算之前算过的所有 selection 的位置
+    for (int i = (int)m_selections.size() - 1; i >= 0; i--)
     {
+        auto& selection = m_selections[i];
         const auto& L = selection.L;
         const auto& R = selection.R;
 
-        if (L == R) 
+        // 若有选区，先清空
+        if (L != R) 
         {
-            // 无选中：直接插入
-            m_lines[L.row].insert(m_lines[L.row].begin() + L.col, c);
-        }
-        else if (L.row == R.row)
-        {
-            // 选中一行：擦除选中区 + 插入字符
-            m_lines[L.row].erase(m_lines[L.row].begin() + L.col, m_lines[L.row].begin() + R.col);
-            m_lines[L.row].insert(m_lines[L.row].begin() + L.col, c);
-        }
-        else
-        {
-            // 选中多行：擦除选中区 + 插入字符
-            // 删除左侧行的右侧部分
-            m_lines[L.row].erase(m_lines[L.row].begin() + L.col, m_lines[L.row].end());
-            // 插入字符
-            m_lines[L.row].push_back(c);
-            // 删除右侧行的左侧部分
-            m_lines[R.row].erase(m_lines[R.row].begin(), m_lines[R.row].begin() + R.col);
-            // 将右侧行的内容合并到左侧行
-            m_lines[L.row].append(m_lines[R.row]);
-            // 删除中间行
-            m_lines.erase(m_lines.begin() + L.row + 1, m_lines.begin() + R.row + 1);
+            // 有选区：删除选区中的所有内容
+            if (L.row == R.row) // 单行
+            {
+                auto& line = m_lines[L.row];
+                line.erase(line.begin() + L.col, line.begin() + R.col);
+
+                // 补偿计算
+                for (int j = i + 1; j < m_selections.size(); j++)
+                {
+                    auto& sel = m_selections[j];
+                    int shiftLength = CalcSelectionLength(selection);
+                    if (sel.L.row != L.row) break; // 单行时只需处理同行内后面的文本
+                    sel.L.col -= shiftLength;
+                    sel.R.col -= shiftLength;
+                }
+            }
+            else // 多行
+            {
+                // 删除左侧行的右侧部分
+                auto& lineL = m_lines[L.row];
+                int startErasePos = std::min(L.col, (int)lineL.size());
+                lineL.erase(lineL.begin() + startErasePos, lineL.end());
+
+                // 删除右侧行的左侧部分
+                auto& lineR = m_lines[R.row];
+                int endErasePos = std::min(R.col, (int)lineR.size());
+                lineR.erase(lineR.begin(), lineR.begin() + endErasePos);
+
+                // 将右侧行的内容合并到左侧行
+                lineL.append(lineR);
+
+                // 删除中间行
+                m_lines.erase(std::max(m_lines.begin(), m_lines.begin() + L.row + 1), std::min(m_lines.begin() + R.row + 1, m_lines.end()));
+
+                // 补偿计算
+                bool bSameLine = true;
+                for (int j = i + 1; j < m_selections.size(); j++)
+                {
+                    auto& sel = m_selections[j];
+                    if (sel.L.row != R.row) bSameLine = false;
+                    if (bSameLine)
+                    {
+                        // 后续选区如果在同一行
+                        int shiftLength = R.col - L.col;
+                        sel.L.row = L.row;
+                        sel.L.col -= shiftLength;
+                        sel.R = sel.L;
+                    }
+                    else
+                    {
+                        // 后续选区如果不在同一行
+                        int shiftLength = R.row - L.row;
+                        sel.L.row -= shiftLength;
+                        sel.R.row -= shiftLength;
+                    }
+                }
+            }
+
+            // 更新光标位置
+            selection.L = selection.R = Coordinate(L.row, L.col);
         }
 
-        // 更新光标位置
-        selection.L = selection.R = Coordinate(L.row, L.col + 1);
+        // 清空完成，开始插入文本...
+        auto& line = m_lines[L.row];
+        int allLineIdx = 0;
+        std::string strPart2;
+        for (int strIdx = 0; strIdx < strArray.size(); strIdx++)
+        {
+            const auto& str = strArray[strIdx];
+            for (int lineIdx = 0; lineIdx < str.size(); lineIdx++, allLineIdx++)
+            {
+                const auto& strLine = str[lineIdx];
+                if (allLineIdx == 0)
+                {
+                    // 如果是第一段的第一行，在光标处截断原始字符串，在前半段后面插入新文本。同时保留后半段。
+                    std::string strPart1 = line.substr(0, L.col);
+                    strPart2 = line.substr(L.col);
+                    line = strPart1 + strLine;
+                }
+                else
+                {
+                    // 其他段全部直接插入整行
+                    m_lines.insert(m_lines.begin() + L.row + allLineIdx, strLine);
+                }
+
+                // 如果是最后一段的最后一行。将之前保留的后半段续上。
+                if (strIdx == strArray.size() - 1 && lineIdx == str.size() - 1)
+                {
+                    m_lines[L.row + allLineIdx] += strPart2;
+                }
+            }
+        }
+
+        // 更新 selection 的位置
+        if (allLineIdx <= 0) {} // 什么都不做
+        else if (allLineIdx == 1) // 输入只有一行
+        {
+            int shiftLength = (int)strArray[0][0].length();
+            selection.L.col += shiftLength;
+            selection.R = selection.L;
+
+            // 补偿计算
+            for (int j = i + 1; j < m_selections.size(); j++)
+            {
+                auto& sel = m_selections[j];
+                if (sel.L.row != L.row) break; // 单行时只需处理同行内的 selection
+                sel.L.col += shiftLength;
+                sel.R.col += shiftLength;
+            }
+        }
+        else // 输入有多行
+        {
+            int shiftLength = (int)strArray.back().back().length();
+            selection.L.row += allLineIdx - 1;
+            selection.L.col = shiftLength;
+            selection.R = selection.L;
+
+            // 补偿计算
+            for (int j = i + 1; j < m_selections.size(); j++)
+            {
+                auto& sel = m_selections[j];
+                sel.L.row += allLineIdx - 1;
+                sel.L.col = shiftLength;
+                sel.R = sel.L;
+            }
+        }
     }
+
+    SelectionsOverlayCheckForKeyEvent(false);
+    ScrollCheckForKeyEvent();
 }
 
 void NXTextEditor::Backspace()
@@ -126,7 +238,7 @@ void NXTextEditor::Backspace()
 
     // 按行列号从后往前挨个处理，复杂度O(selection^2)
     // 每处理一个 selection，都需要补偿计算之前算过的所有 selection 的位置
-    for (int i = m_selections.size() - 1; i >= 0; i--)
+    for (int i = (int)m_selections.size() - 1; i >= 0; i--)
     {
         auto& selection = m_selections[i];
         const auto& L = selection.L;
@@ -138,8 +250,9 @@ void NXTextEditor::Backspace()
             // 无选区：删除上一个字符，光标退一格
             if (L.col > 0) // 单行
             {
-                line.erase(line.begin() + L.col - 1);
-                selection.L = selection.R = Coordinate(L.row, L.col - 1);
+                int erasePos = std::min(L.col - 1, (int)line.size());
+                line.erase(line.begin() + erasePos);
+                selection.L = selection.R = Coordinate(L.row, erasePos);
 
                 // 补偿计算
                 for (int j = i + 1; j < m_selections.size(); j++)
@@ -191,13 +304,13 @@ void NXTextEditor::Backspace()
             {
                 // 删除左侧行的右侧部分
                 auto& lineL = m_lines[L.row];
-                auto startErasePos = std::min(lineL.begin() + L.col, lineL.end());
-                lineL.erase(startErasePos, lineL.end());
+                int startErasePos = std::min(L.col, (int)lineL.size());
+                lineL.erase(lineL.begin() + startErasePos, lineL.end());
 
                 // 删除右侧行的左侧部分
                 auto& lineR = m_lines[R.row];
-                auto endErasePos = std::min(lineR.begin() + R.col, lineR.end());
-                lineR.erase(lineR.begin(), endErasePos);
+                int endErasePos = std::min(R.col, (int)lineR.size());
+                lineR.erase(lineR.begin(), lineR.begin() + endErasePos);
 
                 // 将右侧行的内容合并到左侧行
                 lineL.append(lineR);
@@ -332,6 +445,20 @@ void NXTextEditor::RenderLineNumber()
         ImGui::SetCursorPosX(m_lineNumberPaddingX);
         ImGui::TextUnformatted(strLineNumber.c_str());
     }
+}
+
+void NXTextEditor::CalcLineNumberRectWidth()
+{
+    int nLineNumberDigit = 0;
+    for (int k = 1; k <= m_maxLineNumber; k *= 10) nLineNumberDigit++;
+
+    // 记录行号文本能达到的最大宽度
+    m_lineNumberWidth = m_charWidth * nLineNumberDigit;
+    m_lineNumberWidthWithPaddingX = m_lineNumberWidth + m_lineNumberPaddingX * 2.0f;
+
+    // 行号矩形 - 文本 之间留一个4px的空
+    float paddingX = 4.0f;
+    m_lineTextStartX = m_lineNumberWidthWithPaddingX + paddingX;
 }
 
 void NXTextEditor::RenderSelection(const SelectionInfo& selection)
@@ -774,7 +901,8 @@ void NXTextEditor::RenderTexts_OnKeyInputs()
                 auto c = static_cast<char>(wc);
                 if (wc != 0 && wc >= 32)
                 {
-                    Enter(c);
+                    //Enter({ {{c}} });
+                    Enter({ {"If it looks like food,", "it is not good food", "--senpai810"}, {"114 514", "1919810", "feichangdexinxian", "SOGOKUOISHII", "Desu!"} });
                     m_bResetFlickerDt = true;
                 }
                 else if (wc == '\t') // tab
@@ -782,7 +910,7 @@ void NXTextEditor::RenderTexts_OnKeyInputs()
                     int tabSize = 4;
                     for (int i = 0; i < tabSize; ++i)
                     {
-                        Enter(' ');
+                        Enter({{" "}});
                         m_bResetFlickerDt = true;
                     }
                 }
