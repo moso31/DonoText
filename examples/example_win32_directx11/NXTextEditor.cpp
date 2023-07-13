@@ -300,10 +300,11 @@ void NXTextEditor::Backspace(bool bDelete, bool bCtrl)
                 if (bNeedCombineLastLine)
                 {
                     auto& lastLine = m_lines[L.row - 1];
+                    int lastLength = lastLine.length();
                     lastLine.append(line);
                     m_lines.erase(m_lines.begin() + L.row);
 
-                    selection.L = selection.R = Coordinate(L.row - 1, (int)lastLine.length());
+                    selection.L = selection.R = Coordinate(L.row - 1, lastLength);
                 }
                 else if (bNeedCombineNextLine)
                 {
@@ -317,7 +318,8 @@ void NXTextEditor::Backspace(bool bDelete, bool bCtrl)
                 {
                     auto& sel = m_selections[j];
                     sel.L.row--;
-                    sel.R.row--;
+                    if (sel.L.row == L.row) sel.L.col += L.col; // 当在列尾 delete 时，特殊处理
+                    sel.R = sel.L;
                 }
             }
         }
