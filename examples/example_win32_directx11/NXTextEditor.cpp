@@ -411,8 +411,9 @@ void NXTextEditor::Copy()
         std::vector<std::string> copyLines;
         const auto& L = selection.L;
         const auto& R = selection.R;
-        if (selection.L == selection.R) // rule 1.
+        if (L == R) // rule 1.
         {
+            copyLines.push_back("");
             copyLines.push_back(m_lines[L.row]);
         }
         else // rule 2
