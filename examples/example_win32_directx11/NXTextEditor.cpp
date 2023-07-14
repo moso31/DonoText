@@ -392,6 +392,55 @@ void NXTextEditor::Backspace(bool bDelete, bool bCtrl)
     ScrollCheckForKeyEvent();
 }
 
+void NXTextEditor::Escape()
+{
+    // 按 Esc 后，仅保留最后的 Selection，其它的清除。
+    auto lastSel = m_selections.back();
+    m_selections.assign(1, lastSel);
+}
+
+void NXTextEditor::Copy()
+{
+    m_clipBoard.clear();
+
+    // Copy策略：遍历所有 selections，
+    // 1. 如果selection是个单选光标，copy光标所在的一整行。
+    // 2. 如果selection是个选区，copy整个选区；
+    for (const auto& selection : m_selections)
+    {
+        std::vector<std::string> copyLines;
+        const auto& L = selection.L;
+        const auto& R = selection.R;
+        if (selection.L == selection.R) // rule 1.
+        {
+            copyLines.push_back(m_lines[L.row]);
+        }
+        else // rule 2
+        {
+            if (L.row == R.row) // 同行
+            {
+                copyLines.push_back(m_lines[L.row].substr(L.col, R.col - L.col));
+            }
+            else // 跨行
+            {
+                copyLines.push_back(m_lines[L.row].substr(L.col));
+                for (int i = L.row + 1; i < R.row; i++)
+                {
+                    copyLines.push_back(m_lines[i]);
+                }
+                copyLines.push_back(m_lines[R.row].substr(0, R.col));
+            }
+        }
+
+        m_clipBoard.push_back(copyLines);
+    }
+}
+
+void NXTextEditor::Paste()
+{
+    Enter(m_clipBoard);
+}
+
 void NXTextEditor::Render_MainLayer()
 {
     const ImVec2& windowSize = ImGui::GetWindowSize();
@@ -909,7 +958,13 @@ void NXTextEditor::RenderTexts_OnKeyInputs()
         bool bKeyPageUpPressed = ImGui::IsKeyPressed(ImGuiKey_PageUp);
         bool bKeyPageDownPressed = ImGui::IsKeyPressed(ImGuiKey_PageDown);
         bool bDeletePressed = ImGui::IsKeyPressed(ImGuiKey_Delete);
+        bool bBackspacePressed = ImGui::IsKeyPressed(ImGuiKey_Backspace);
         bool bInsertPressed = ImGui::IsKeyDown(ImGuiKey_Insert);
+        bool bEnterPressed = ImGui::IsKeyPressed(ImGuiKey_Enter);
+        bool bEscPressed = ImGui::IsKeyPressed(ImGuiKey_Escape);
+
+        bool bCopyCommand = bCtrl && ImGui::IsKeyPressed(ImGuiKey_C);
+        bool bPasteCommand = bCtrl && ImGui::IsKeyPressed(ImGuiKey_V);
 
         bool bCtrlHomePressed = bCtrl && bKeyHomePressed;
         bool bCtrlEndPressed = bCtrl && bKeyEndPressed;
@@ -937,13 +992,36 @@ void NXTextEditor::RenderTexts_OnKeyInputs()
             m_bResetFlickerDt = true;
         }
 
-        else if (bDeletePressed)
+        else if (bDeletePressed || bBackspacePressed)
         {
             Backspace(bDeletePressed, bCtrl);
             m_bResetFlickerDt = true;
         }
 
-        if (!io.InputQueueCharacters.empty())
+        else if (bEnterPressed)
+        {
+            Enter({ {""}, {""} });
+            m_bResetFlickerDt = true;
+        }
+
+        else if (bEscPressed)
+        {
+            Escape();
+            m_bResetFlickerDt = true;
+        }
+
+        else if (bCopyCommand)
+        {
+            Copy();
+            m_bResetFlickerDt = true;
+        }
+        else if (bPasteCommand)
+        {
+            Paste();
+            m_bResetFlickerDt = true;
+        }
+
+        if (!io.InputQueueCharacters.empty() && !bCtrl && !bAlt)
         {
             for (const auto& wc : io.InputQueueCharacters)
             {
@@ -962,17 +1040,6 @@ void NXTextEditor::RenderTexts_OnKeyInputs()
                         Enter({{" "}});
                         m_bResetFlickerDt = true;
                     }
-                }
-                else if (wc == 13) // enter
-                {
-                    Enter({ {""}, {""} });
-                    m_bResetFlickerDt = true;
-                }
-                else if (wc == 8 || wc == 127) // backspace, ctrl+backspace, delete
-                {
-                    // wc == 127: ctrl+backspace，需特殊处理
-                    Backspace(bDeletePressed, wc == 127);
-                    m_bResetFlickerDt = true;
                 }
             }
 

@@ -108,6 +108,9 @@ public:
 public:
     void Enter(const std::vector<std::vector<std::string>>& strArray);
     void Backspace(bool IsDelete, bool bCtrl);
+    void Escape();
+    void Copy();
+    void Paste();
 
 private:
     void Render_MainLayer();
@@ -176,4 +179,7 @@ private:
     Coordinate m_activeSelectionMove;
 
     bool m_bNeedFocusOnText = true;
+
+    // ClipBoard, used in ctrl c v
+    std::vector<std::vector<std::string>> m_clipBoard;
 };
