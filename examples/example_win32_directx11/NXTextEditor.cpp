@@ -300,7 +300,7 @@ void NXTextEditor::Backspace(bool bDelete, bool bCtrl)
                 if (bNeedCombineLastLine)
                 {
                     auto& lastLine = m_lines[L.row - 1];
-                    int lastLength = lastLine.length();
+                    int lastLength = (int)lastLine.length();
                     lastLine.append(line);
                     m_lines.erase(m_lines.begin() + L.row);
 
@@ -439,6 +439,11 @@ void NXTextEditor::Copy()
 void NXTextEditor::Paste()
 {
     Enter(m_clipBoard);
+}
+
+void NXTextEditor::SelectAll()
+{
+    m_selections.assign(1, { {0, 0}, {(int)m_lines.size() - 1, (int)m_lines.back().length()} });
 }
 
 void NXTextEditor::Render_MainLayer()
@@ -963,6 +968,7 @@ void NXTextEditor::RenderTexts_OnKeyInputs()
         bool bEnterPressed = ImGui::IsKeyPressed(ImGuiKey_Enter);
         bool bEscPressed = ImGui::IsKeyPressed(ImGuiKey_Escape);
 
+        bool bSelectAllCommand = bCtrl && ImGui::IsKeyPressed(ImGuiKey_A);
         bool bCopyCommand = bCtrl && ImGui::IsKeyPressed(ImGuiKey_C);
         bool bPasteCommand = bCtrl && ImGui::IsKeyPressed(ImGuiKey_V);
 
@@ -1018,6 +1024,11 @@ void NXTextEditor::RenderTexts_OnKeyInputs()
         else if (bPasteCommand)
         {
             Paste();
+            m_bResetFlickerDt = true;
+        }
+        else if (bSelectAllCommand)
+        {
+            SelectAll();
             m_bResetFlickerDt = true;
         }
 

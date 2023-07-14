@@ -111,6 +111,7 @@ public:
     void Escape();
     void Copy();
     void Paste();
+    void SelectAll();
 
 private:
     void Render_MainLayer();
