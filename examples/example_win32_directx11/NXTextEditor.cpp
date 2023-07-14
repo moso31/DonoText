@@ -1151,7 +1151,7 @@ void NXTextEditor::MoveLeft(SelectionInfo& sel, bool bShift, bool bCtrl, bool bH
     if (bHome) pos.col = 0;
     else
     {
-        while (size > 0)
+        while (size) // 持续左移，直到 size 耗尽
         {
             if (pos.col > 0)
             {
@@ -1173,8 +1173,9 @@ void NXTextEditor::MoveLeft(SelectionInfo& sel, bool bShift, bool bCtrl, bool bH
             {
                 pos.row--;
                 pos.col = (int)m_lines[pos.row].size();
+                size--;
             }
-            else break;
+            else break; // 如果已到达全文开头，则左移终止
         }
     }
 
@@ -1197,7 +1198,7 @@ void NXTextEditor::MoveRight(SelectionInfo& sel, bool bShift, bool bCtrl, bool b
     if (bEnd) pos.col = (int)m_lines[pos.row].size();
     else
     {
-        while (size)
+        while (size) // 持续右移，直到 size 耗尽
         {
             if (pos.col < m_lines[pos.row].size())
             {
@@ -1218,8 +1219,9 @@ void NXTextEditor::MoveRight(SelectionInfo& sel, bool bShift, bool bCtrl, bool b
             {
                 pos.row++;
                 pos.col = 0;
+                size--;
             }
-            else break;
+            else break; // 如果已到达全文末尾，则右移终止
         }
     }
 
