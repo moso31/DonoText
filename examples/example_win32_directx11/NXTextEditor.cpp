@@ -401,14 +401,13 @@ void NXTextEditor::Escape()
 
 void NXTextEditor::Copy()
 {
-    m_clipBoard.clear();
+    std::vector<std::string> copyLines;
 
     // Copy策略：遍历所有 selections，
     // 1. 如果selection是个单选光标，copy光标所在的一整行。
     // 2. 如果selection是个选区，copy整个选区；
     for (const auto& selection : m_selections)
     {
-        std::vector<std::string> copyLines;
         const auto& L = selection.L;
         const auto& R = selection.R;
         if (L == R) // rule 1.
@@ -432,14 +431,27 @@ void NXTextEditor::Copy()
                 copyLines.push_back(m_lines[R.row].substr(0, R.col));
             }
         }
-
-        m_clipBoard.push_back(copyLines);
     }
+
+    std::string clipBoardText;
+    for (const auto& str : copyLines) clipBoardText.append(str + '\n');
+    ImGui::SetClipboardText(clipBoardText.c_str());
 }
 
 void NXTextEditor::Paste()
 {
-    Enter(m_clipBoard);
+    std::string clipText = ImGui::GetClipboardText();
+    std::vector<std::string> lines;
+    size_t pos = 0;
+    std::string token;
+    while ((pos = clipText.find("\n")) != std::string::npos)
+    {
+        token = clipText.substr(0, pos);
+        lines.push_back(token);
+        clipText.erase(0, pos + 1);
+    }
+    lines.push_back(clipText);
+    Enter({ lines });
 }
 
 void NXTextEditor::SelectAll()
@@ -1022,11 +1034,13 @@ void NXTextEditor::RenderTexts_OnKeyInputs()
             Copy();
             m_bResetFlickerDt = true;
         }
+
         else if (bPasteCommand)
         {
             Paste();
             m_bResetFlickerDt = true;
         }
+
         else if (bSelectAllCommand)
         {
             SelectAll();
