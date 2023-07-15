@@ -3,17 +3,20 @@
 #include <iostream>
 #include <cctype>
 
-NXTextEditor::NXTextEditor()
+NXTextEditor::NXTextEditor(ImFont* pFont) :
+    m_pFont(pFont)
 {
 	// 逐行读取某个文件的文本信息 
 	//std::ifstream file("..\\..\\imgui_demo.cpp");
-	std::ifstream file("..\\..\\license.txt");
+	//std::ifstream file("..\\..\\license.txt");
+	std::ifstream file("..\\..\\a.txt");
     //std::ifstream file("D:\\Users\\Administrator\\Source\\Repos\\DonoText\\imgui_demo.cpp");
 
 	// 逐行读取文件内容到 m_lines 
-	std::string line;
+	TextString line;
 	while (std::getline(file, line))
 	{
+        line.formatArray.push_back(TextFormat(0xff00ffff, 5));
 		m_lines.push_back(line);
 	}
 }
@@ -21,13 +24,13 @@ NXTextEditor::NXTextEditor()
 void NXTextEditor::Init()
 {
     // get single char size of font
-    auto font = ImGui::GetFont();
-    const ImVec2 fontSize = font->CalcTextSizeA(font->FontSize, FLT_MAX, -1.0f, " ");
+    const ImVec2 fontSize = m_pFont->CalcTextSizeA(m_pFont->FontSize, FLT_MAX, -1.0f, " ");
 
     // 2023.7.4 仅支持等宽字体！其它字体感觉略有点吃性能，且没什么必要。
+
     // 预存储单个字符的 xy像素大小
     m_charWidth = fontSize.x;
-    m_charHeight = ImGui::GetTextLineHeightWithSpacing(); // fontSize.y + style.ItemSpacing;
+    m_charHeight = fontSize.y + ImGui::GetStyle().ItemSpacing.y;
 
     // 行号至少有两位的宽度
     m_maxLineNumber = 99;
@@ -36,6 +39,9 @@ void NXTextEditor::Init()
 
 void NXTextEditor::Render()
 {
+    ImGui::PushFont(m_pFont);
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 4.0f));
+
     if (m_bResetFlickerDt)
     {
         m_flickerDt = ImGui::GetTime();
@@ -65,7 +71,9 @@ void NXTextEditor::Render()
     ImGui::EndChild();
 
     ImGui::End();
-    //ImGui::PopStyleVar();
+
+    ImGui::PopStyleVar();
+    ImGui::PopFont();
 }
 
 void NXTextEditor::AddSelection(const Coordinate& A, const Coordinate& B)
@@ -528,11 +536,43 @@ void NXTextEditor::RenderSelections()
 
 void NXTextEditor::RenderTexts()
 {
+    //ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, ImGui::GetStyle().ItemSpacing.y));
+
     for (int i = 0; i < m_lines.size(); i++)
     {
         const auto& strLine = m_lines[i];
-        ImGui::TextUnformatted(strLine.c_str());
+        if (strLine.formatArray.empty())
+            ImGui::TextUnformatted(strLine.c_str());
+        else
+        {
+            int index = 0;
+            for (const auto& strFormat : strLine.formatArray)
+            {
+                std::string strPart = strLine.substr(index, strFormat.length);
+                index += strFormat.length;
+
+                ImGui::PushStyleColor(ImGuiCol_Text, ImGui::ColorConvertU32ToFloat4(strFormat.color));
+                ImGui::TextUnformatted(strPart.c_str());
+                ImGui::PopStyleColor();
+
+                if (index < strLine.length())
+                    ImGui::SameLine();
+                else
+                    break;
+            }
+
+            if (index < strLine.length())
+            {
+                std::string strPart = strLine.substr(index);
+
+                ImGui::PushStyleColor(ImGuiCol_Text, ImGui::ColorConvertU32ToFloat4(-1));
+                ImGui::TextUnformatted(strPart.c_str());
+                ImGui::PopStyleColor();
+            }
+        }
     }
+
+    //ImGui::PopStyleVar();
 }
 
 void NXTextEditor::RenderLineNumber()

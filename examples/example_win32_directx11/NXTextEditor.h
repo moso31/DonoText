@@ -94,8 +94,26 @@ class NXTextEditor
         bool flickerAtFront;
     };
 
+    struct TextFormat
+    {
+        TextFormat(ImU32 color, int index) : color(color), length(index) {}
+
+        ImU32 color = 0xffffffff;
+        int length = INT_MAX;
+    };
+
+    // std::string 扩展类，用于在渲染时，根据颜色绘制字符
+    struct TextString : public std::string
+    {
+        TextString() = default;
+        TextString(const std::string& str) : std::string(str) {};
+
+        // 渲染时遍历formatArray，使用 color[i] 颜色，持续 length[i] 个字符
+        std::vector<TextFormat> formatArray;
+    };
+
 public:
-    NXTextEditor();
+    NXTextEditor(ImFont* pFont);
     ~NXTextEditor() {}
 
     void Init();
@@ -145,7 +163,7 @@ private:
     bool IsVariableChar(const char& ch);
 
 private:
-    std::vector<std::string> m_lines;
+    std::vector<TextString> m_lines;
 
 private:
     // 记录行号文本能达到的最大宽度
@@ -180,4 +198,6 @@ private:
     Coordinate m_activeSelectionMove;
 
     bool m_bNeedFocusOnText = true;
+
+    ImFont* m_pFont;
 };

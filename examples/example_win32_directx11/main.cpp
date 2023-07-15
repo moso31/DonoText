@@ -25,7 +25,6 @@ void CleanupRenderTarget();
 LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 TextEditor editor;
-NXTextEditor nxEditor;
 // Main code
 int main(int, char**)
 {
@@ -87,12 +86,21 @@ int main(int, char**)
     // - Use '#define IMGUI_ENABLE_FREETYPE' in your imconfig file to use Freetype for higher quality font rendering.
     // - Read 'docs/FONTS.md' for more instructions and details.
     // - Remember that in C/C++ if you want to include a backslash \ in a string literal you need to write a double backslash \\ !
+
     //io.Fonts->AddFontDefault();
+
+    ImFontConfig configData;
+    configData.GlyphMinAdvanceX = configData.GlyphMaxAdvanceX = 7.2f;
+    auto pFont0 = io.Fonts->AddFontFromFileTTF("../../misc/fonts/JetBrainsMono-Bold.ttf", 16.0f, &configData);
+
+    ImFontConfig configData1;
+    configData1.GlyphMinAdvanceX = configData1.GlyphMaxAdvanceX = 9.0f;
+    auto pFont1 = io.Fonts->AddFontFromFileTTF("../../misc/fonts/JetBrainsMono-Bold.ttf", 20.0f, &configData1);
     //io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\segoeui.ttf", 18.0f);
     //io.Fonts->AddFontFromFileTTF("../../misc/fonts/DroidSans.ttf", 16.0f);
-    io.Fonts->AddFontFromFileTTF("../../misc/fonts/JetBrainsMono-Bold.ttf", 20.0f);
     //io.Fonts->AddFontFromFileTTF("../../misc/fonts/Roboto-Medium.ttf", 16.0f);
     //io.Fonts->AddFontFromFileTTF("../../misc/fonts/Cousine-Regular.ttf", 15.0f);
+
     //ImFont* font = io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\ArialUni.ttf", 18.0f, nullptr, io.Fonts->GetGlyphRangesJapanese());
     //IM_ASSERT(font != nullptr);
 
@@ -172,6 +180,7 @@ int main(int, char**)
         static bool bEditor = true;
         //editor.Render("eee");
 
+        static NXTextEditor nxEditor(pFont0);
         static bool bInit = false;
         if (!bInit)
         {
