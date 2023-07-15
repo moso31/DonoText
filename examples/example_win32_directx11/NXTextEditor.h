@@ -131,6 +131,8 @@ public:
     void Paste();
     void SelectAll();
 
+    void HighLightSyntax(TextString& string);
+
 private:
     void Render_MainLayer();
     void Render_DebugLayer();
@@ -178,6 +180,9 @@ private:
 
     // 文本的起始像素位置
     float m_lineTextStartX;
+
+    // 记录最大行字符数
+    size_t m_maxLineCharCount = 0;
 
     // 单个字符的大小
     float m_charWidth;

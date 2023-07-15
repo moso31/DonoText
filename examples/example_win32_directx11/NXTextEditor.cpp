@@ -475,6 +475,12 @@ void NXTextEditor::SelectAll()
     m_selections.assign(1, { {0, 0}, {(int)m_lines.size() - 1, (int)m_lines.back().length()} });
 }
 
+void NXTextEditor::HighLightSyntax(TextString& strLine)
+{
+    // 生成 某行代码文本的高亮
+
+}
+
 void NXTextEditor::Render_MainLayer()
 {
     const ImVec2& windowSize = ImGui::GetWindowSize();
@@ -552,14 +558,24 @@ void NXTextEditor::RenderTexts()
 
     for (int i = 0; i < m_lines.size(); i++)
     {
+        const auto& strLine = m_lines[i];
+        m_maxLineCharCount = std::max(m_maxLineCharCount, strLine.length()); // 记录每行最长的字符数，用于填充空格
+
         if (i < startRow || i > endRow)
         {
-            // 不实际绘制渲染区以外的内容
-            ImGui::NewLine();
+            if (i == startRow - 1 || i == endRow + 1)
+            {
+                // 在视野外的上一行/下一行，使用最长行字符数量的空格填充，以保持固定长度（避免scrollX失效）
+                ImGui::TextUnformatted(std::string(m_maxLineCharCount, ' ').c_str());
+            }
+            else
+            {
+                // 除上述行以外，跳过其他视野外的行的文本绘制，优化性能。
+                ImGui::NewLine();
+            }
             continue;
         }
 
-        const auto& strLine = m_lines[i];
         if (strLine.formatArray.empty())
             ImGui::TextUnformatted(strLine.c_str());
         else
