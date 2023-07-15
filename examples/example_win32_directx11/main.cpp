@@ -180,7 +180,7 @@ int main(int, char**)
         static bool bEditor = true;
         //editor.Render("eee");
 
-        static NXTextEditor nxEditor(pFont0);
+        static NXTextEditor nxEditor(pFont1);
         static bool bInit = false;
         if (!bInit)
         {

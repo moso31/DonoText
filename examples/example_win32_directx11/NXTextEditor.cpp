@@ -7,16 +7,24 @@ NXTextEditor::NXTextEditor(ImFont* pFont) :
     m_pFont(pFont)
 {
 	// 逐行读取某个文件的文本信息 
-	//std::ifstream file("..\\..\\imgui_demo.cpp");
+	std::ifstream file("..\\..\\imgui_demo.cpp");
 	//std::ifstream file("..\\..\\license.txt");
-	std::ifstream file("..\\..\\a.txt");
+	//std::ifstream file("..\\..\\a.txt");
     //std::ifstream file("D:\\Users\\Administrator\\Source\\Repos\\DonoText\\imgui_demo.cpp");
 
 	// 逐行读取文件内容到 m_lines 
 	TextString line;
 	while (std::getline(file, line))
 	{
-        line.formatArray.push_back(TextFormat(0xff00ffff, 5));
+        line.formatArray.clear();
+        for (int i = 0; i < 50; i++)
+        {
+            int cr = (rand() & 0x7f) + 0x80;
+            int cg = (rand() & 0x7f) + 0x80; cg <<= 8;
+            int cb = (rand() & 0x7f) + 0x80; cb <<= 16;
+            ImU32 random = cg | cb | cr | 0xff000000;
+            line.formatArray.push_back(TextFormat(random, rand() % 5 + 1));
+        }
 		m_lines.push_back(line);
 	}
 }
@@ -536,10 +544,21 @@ void NXTextEditor::RenderSelections()
 
 void NXTextEditor::RenderTexts()
 {
-    //ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, ImGui::GetStyle().ItemSpacing.y));
+    ImVec2 windowPos = ImGui::GetWindowPos();
+    ImVec2 contextArea = ImGui::GetContentRegionAvail();
+    float scrollY = ImGui::GetScrollY();
+    int startRow = (int)scrollY / m_charHeight;
+    int endRow = (int)(scrollY + contextArea.y) / m_charHeight;
 
     for (int i = 0; i < m_lines.size(); i++)
     {
+        if (i < startRow || i > endRow)
+        {
+            // 不实际绘制渲染区以外的内容
+            ImGui::NewLine();
+            continue;
+        }
+
         const auto& strLine = m_lines[i];
         if (strLine.formatArray.empty())
             ImGui::TextUnformatted(strLine.c_str());
@@ -571,8 +590,6 @@ void NXTextEditor::RenderTexts()
             }
         }
     }
-
-    //ImGui::PopStyleVar();
 }
 
 void NXTextEditor::RenderLineNumber()
