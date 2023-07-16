@@ -8,6 +8,5 @@ A self made, dear Imgui-based TextEditor.
 
 still in progress...
 
-https://github.com/moso31/DonoText/assets/15684115/bd1a0ac4-e4ae-4b47-b98b-123550ceaf26
-
-![image](https://github.com/moso31/DonoText/assets/15684115/fd9d2568-ca6f-43c7-8968-153460a577fd)
+![image](https://github.com/moso31/DonoText/assets/15684115/fac4eaec-524a-4936-aab8-99582d28775b)
+![image](https://github.com/moso31/DonoText/assets/15684115/d1bc6d0a-2335-4c5a-ba59-9a25154308ea)
