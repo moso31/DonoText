@@ -90,7 +90,7 @@ int main(int, char**)
     //io.Fonts->AddFontDefault();
 
     ImFontConfig configData;
-    configData.GlyphMinAdvanceX = configData.GlyphMaxAdvanceX = 7.2f;
+    configData.GlyphMinAdvanceX = configData.GlyphMaxAdvanceX = 7.0f;
     auto pFont0 = io.Fonts->AddFontFromFileTTF("../../misc/fonts/JetBrainsMono-Bold.ttf", 16.0f, &configData);
 
     ImFontConfig configData1;
@@ -180,7 +180,7 @@ int main(int, char**)
         static bool bEditor = true;
         //editor.Render("eee");
 
-        static NXTextEditor nxEditor(pFont1);
+        static NXTextEditor nxEditor(pFont0);
         static bool bInit = false;
         if (!bInit)
         {

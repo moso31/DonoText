@@ -433,12 +433,12 @@ void NXTextEditor::Copy()
             }
             else // 跨行
             {
-                copyLines.push_back(m_lines[L.row].substr(L.col));
+                copyLines.push_back(m_lines[L.row].substr(std::min(L.col, (int)m_lines[L.row].size())));
                 for (int i = L.row + 1; i < R.row; i++)
                 {
                     copyLines.push_back(m_lines[i]);
                 }
-                copyLines.push_back(m_lines[R.row].substr(0, R.col));
+                copyLines.push_back(m_lines[R.row].substr(0, std::min(R.col, (int)m_lines[R.row].size())));
             }
         }
     }
