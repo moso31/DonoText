@@ -486,11 +486,11 @@ void NXTextEditor::HighLightSyntax(TextString& strLine)
     };
 
     static std::vector<ImU32> hlsl_token_color = {
+        0xff4fff4f, // comments
         0xffff9f4f, // values
         0xff00ffff, // types
         0xffff6fff, // conditional branches
         0xffffff4f, // methods
-        0xff00ff00, // comments
     };
 
     std::vector<TextKeyword> strWords = ExtractKeywords(strLine);
@@ -515,6 +515,12 @@ void NXTextEditor::HighLightSyntax(TextString& strLine)
     for (const auto& strWord : strWords)
     {
         if (strWord.tokenColorIndex == -1) continue;
+
+        if (strWord.tokenColorIndex == 0)
+        {
+            strLine.formatArray.push_back(TextFormat(hlsl_token_color[strWord.tokenColorIndex], INT_MAX));
+            break;
+        }
 
         int tokenLength = (int)strWord.string.length();
         if (strWord.startIndex > idx)
@@ -1376,6 +1382,17 @@ std::vector<NXTextEditor::TextKeyword> NXTextEditor::ExtractKeywords(const TextS
             // 对于非字母或数字的字符，如果当前单词不为空，则添加到words列表中，并清空当前单词
             words.push_back({ word, i - (int)word.length() });;
             word.clear();
+        }
+
+        // 注释检测
+        if (c == '/' && i + 1 < text.length())
+        {
+            if (text[i + 1] == '/')
+            {
+                words.push_back({ "//", i, 0 });
+                word.clear();
+                return words;
+            }
         }
     }
 
