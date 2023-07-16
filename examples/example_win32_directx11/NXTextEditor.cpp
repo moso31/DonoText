@@ -473,6 +473,8 @@ void NXTextEditor::HighLightSyntax(TextString& strLine)
 {
     // 生成 某行代码文本的高亮
     static std::vector<std::vector<std::string>> const hlsl_tokens = {
+        // comment
+        {"//"},
         // values
         { "void", "true", "false", "bool", "int", "uint", "dword", "half", "float", "double", "min16float", "min10float", "min16int", "min12int", "min16uint", "bool1", "bool2", "bool3", "bool4", "int1", "int2", "int3", "int4", "uint1", "uint2", "uint3", "uint4", "dword1", "dword2", "dword3", "dword4", "half1", "half2", "half3", "half4", "float1", "float2", "float3", "float4", "double1", "double2", "double3", "double4", "min16float1", "min16float2", "min16float3", "min16float4", "min10float1", "min10float2", "min10float3", "min10float4", "min16int1", "min16int2", "min16int3", "min16int4", "min12int1", "min12int2", "min12int3", "min12int4", "min16uint1", "min16uint2", "min16uint3", "min16uint4", "float1x1", "float1x2", "float1x3", "float1x4", "float2x1", "float2x2", "float2x3", "float2x4", "float3x1", "float3x2", "float3x3", "float3x4", "float4x1", "float4x2", "float4x3", "float4x4", "double1x1", "double1x2", "double1x3", "double1x4", "double2x1", "double2x2", "double2x3", "double2x4", "double3x1", "double3x2", "double3x3", "double3x4", "double4x1", "double4x2", "double4x3", "double4x4", "vector", "matrix", "extern", "nointerpolation", "precise", "shared", "groupshared", "static", "uniform", "volatile", "const", "row_major", "column_major", "packoffset", "register" },
         // types
@@ -488,6 +490,7 @@ void NXTextEditor::HighLightSyntax(TextString& strLine)
         0xff00ffff, // types
         0xffff6fff, // conditional branches
         0xffffff4f, // methods
+        0xff00ff00, // comments
     };
 
     std::vector<TextKeyword> strWords = ExtractKeywords(strLine);
@@ -500,6 +503,8 @@ void NXTextEditor::HighLightSyntax(TextString& strLine)
             {
                 if (strWord.string == token)
                 {
+                    if (i == 4)
+                        int x = 9;
                     strWord.tokenColorIndex = i;
                     break;
                 }
