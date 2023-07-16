@@ -503,8 +503,6 @@ void NXTextEditor::HighLightSyntax(TextString& strLine)
             {
                 if (strWord.string == token)
                 {
-                    if (i == 4)
-                        int x = 9;
                     strWord.tokenColorIndex = i;
                     break;
                 }
