@@ -9,4 +9,4 @@ A self made, dear Imgui-based TextEditor.
 still in progress...
 
 ![image](https://github.com/moso31/DonoText/assets/15684115/fac4eaec-524a-4936-aab8-99582d28775b)
-![image](https://github.com/moso31/DonoText/assets/15684115/e2e742fd-f49b-48e0-85b7-fa7345e078b4)
+![image](https://github.com/moso31/DonoText/assets/15684115/b03e1c3a-891f-4d04-86c9-c4ba141c64c3)
