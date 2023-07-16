@@ -112,6 +112,13 @@ class NXTextEditor
         std::vector<TextFormat> formatArray;
     };
 
+    struct TextKeyword
+    {
+        std::string string;
+        int startIndex;
+        int tokenColorIndex = -1;
+    };
+
 public:
     NXTextEditor(ImFont* pFont);
     ~NXTextEditor() {}
@@ -163,6 +170,9 @@ private:
     void MoveRight(SelectionInfo& selection, bool bShift, bool bCtrl, bool bEnd, int size);
 
     bool IsVariableChar(const char& ch);
+
+    // 从当前行中提取出可能是关键词的字符
+    std::vector<TextKeyword> ExtractKeywords(const TextString& text);
 
 private:
     std::vector<TextString> m_lines;

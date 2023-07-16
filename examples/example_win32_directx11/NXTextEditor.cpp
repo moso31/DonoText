@@ -2,14 +2,15 @@
 #include <fstream>
 #include <iostream>
 #include <cctype>
+#include <map>
 
 NXTextEditor::NXTextEditor(ImFont* pFont) :
     m_pFont(pFont)
 {
 	// 逐行读取某个文件的文本信息 
-	std::ifstream file("..\\..\\imgui_demo.cpp");
+	//std::ifstream file("..\\..\\imgui_demo.cpp");
 	//std::ifstream file("..\\..\\license.txt");
-	//std::ifstream file("..\\..\\a.txt");
+	std::ifstream file("..\\..\\a.txt");
     //std::ifstream file("D:\\Users\\Administrator\\Source\\Repos\\DonoText\\imgui_demo.cpp");
 
 	// 逐行读取文件内容到 m_lines 
@@ -17,14 +18,7 @@ NXTextEditor::NXTextEditor(ImFont* pFont) :
 	while (std::getline(file, line))
 	{
         line.formatArray.clear();
-        for (int i = 0; i < 50; i++)
-        {
-            int cr = (rand() & 0x7f) + 0x80;
-            int cg = (rand() & 0x7f) + 0x80; cg <<= 8;
-            int cb = (rand() & 0x7f) + 0x80; cb <<= 16;
-            ImU32 random = cg | cb | cr | 0xff000000;
-            line.formatArray.push_back(TextFormat(random, rand() % 5 + 1));
-        }
+        HighLightSyntax(line);
 		m_lines.push_back(line);
 	}
 }
@@ -478,7 +472,54 @@ void NXTextEditor::SelectAll()
 void NXTextEditor::HighLightSyntax(TextString& strLine)
 {
     // 生成 某行代码文本的高亮
+    static std::vector<std::vector<std::string>> const hlsl_tokens = {
+        // values
+        { "void", "true", "false", "bool", "int", "uint", "dword", "half", "float", "double", "min16float", "min10float", "min16int", "min12int", "min16uint", "bool1", "bool2", "bool3", "bool4", "int1", "int2", "int3", "int4", "uint1", "uint2", "uint3", "uint4", "dword1", "dword2", "dword3", "dword4", "half1", "half2", "half3", "half4", "float1", "float2", "float3", "float4", "double1", "double2", "double3", "double4", "min16float1", "min16float2", "min16float3", "min16float4", "min10float1", "min10float2", "min10float3", "min10float4", "min16int1", "min16int2", "min16int3", "min16int4", "min12int1", "min12int2", "min12int3", "min12int4", "min16uint1", "min16uint2", "min16uint3", "min16uint4", "float1x1", "float1x2", "float1x3", "float1x4", "float2x1", "float2x2", "float2x3", "float2x4", "float3x1", "float3x2", "float3x3", "float3x4", "float4x1", "float4x2", "float4x3", "float4x4", "double1x1", "double1x2", "double1x3", "double1x4", "double2x1", "double2x2", "double2x3", "double2x4", "double3x1", "double3x2", "double3x3", "double3x4", "double4x1", "double4x2", "double4x3", "double4x4", "vector", "matrix", "extern", "nointerpolation", "precise", "shared", "groupshared", "static", "uniform", "volatile", "const", "row_major", "column_major", "packoffset", "register" },
+        // types
+        { "string", "Buffer", "texture", "sampler", "sampler1D", "sampler2D", "sampler3D", "samplerCUBE", "sampler_state", "SamplerState", "SamplerComparisonState", "AppendStructuredBuffer", "Buffer", "ByteAddressBuffer", "ConsumeStructuredBuffer", "InputPatch", "OutputPatch", "RWBuffer", "RWByteAddressBuffer", "RWStructuredBuffer", "RWTexture1D", "RWTexture1DArray", "RWTexture2D", "RWTexture2DArray", "RWTexture3D", "StructuredBuffer", "Texture1D", "Texture1DArray", "Texture2D", "Texture2DArray", "Texture3D", "Texture2DMS", "Texture2DMSArray", "TextureCube", "TextureCubeArray" },
+        // conditional branches
+        { "if", "else", "for", "while", "do", "switch", "case", "default", "break", "continue", "discard", "return" },
+        // methods
+        { "abort", "abs", "acos", "all", "AllMemoryBarrier", "AllMemoryBarrierWithGroupSync", "any", "asdouble", "asfloat", "asin", "asint", "asuint", "atan", "atan2", "ceil", "CheckAccessFullyMapped", "clamp", "clip", "cos", "cosh", "countbits", "cross", "D3DCOLORtoUBYTE4", "ddx", "ddx_coarse", "ddx_fine", "ddy", "ddy_coarse", "ddy_fine", "degrees", "determinant", "DeviceMemoryBarrier", "DeviceMemoryBarrierWithGroupSync", "distance", "dot", "dst", "errorf", "EvaluateAttributeCentroid", "EvaluateAttributeAtSample", "EvaluateAttributeSnapped", "exp", "exp2", "f16tof32", "f32tof16", "faceforward", "firstbithigh", "firstbitlow", "floor", "fma", "fmod", "frac", "frexp", "fwidth", "GetRenderTargetSampleCount", "GetRenderTargetSamplePosition", "GroupMemoryBarrier", "GroupMemoryBarrierWithGroupSync", "InterlockedAdd", "InterlockedAnd", "InterlockedCompareExchange", "InterlockedCompareStore", "InterlockedExchange", "InterlockedMax", "InterlockedMin", "InterlockedOr", "InterlockedXor", "isfinite", "isinf", "isnan", "ldexp", "length", "lerp", "lit", "log", "log10", "log2", "mad", "max", "min", "modf", "msad4", "mul", "noise", "normalize", "pow", "printf", "Process2DQuadTessFactorsAvg", "Process2DQuadTessFactorsMax", "Process2DQuadTessFactorsMin", "ProcessIsolineTessFactors", "ProcessQuadTessFactorsAvg", "ProcessQuadTessFactorsMax", "ProcessQuadTessFactorsMin", "ProcessTriTessFactorsAvg", "ProcessTriTessFactorsMax", "ProcessTriTessFactorsMin", "radians", "rcp", "reflect", "refract", "reversebits", "round", "rsqrt", "saturate", "sign", "sin", "sincos", "sinh", "smoothstep", "sqrt", "step", "tan", "tanh", "tex1D", "tex1Dgrad", "tex1Dlod", "tex1Dproj", "tex2D", "tex2Dgrad", "tex2Dlod", "tex2Dproj", "tex3D", "tex3Dgrad", "tex3Dlod", "tex3Dproj", "texCUBE", "texCUBEgrad", "texCUBElod", "texCUBEproj", "transpose", "trunc" },
+    };
 
+    static std::vector<ImU32> hlsl_token_color = {
+        0xffff9f4f, // values
+        0xff00ffff, // types
+        0xffff6fff, // conditional branches
+        0xffffff4f, // methods
+    };
+
+    std::vector<TextKeyword> strWords = ExtractKeywords(strLine);
+    for(auto& strWord : strWords)
+    {
+        for (int i = 0; i < hlsl_tokens.size(); i++)
+        {
+            if (strWord.tokenColorIndex != -1) break;
+            for (const auto& token : hlsl_tokens[i])
+            {
+                if (strWord.string == token)
+                {
+                    strWord.tokenColorIndex = i;
+                    break;
+                }
+            }
+        }
+    }
+
+    strLine.formatArray.clear();
+    int idx = 0;
+    for (const auto& strWord : strWords)
+    {
+        if (strWord.tokenColorIndex == -1) continue;
+
+        int tokenLength = (int)strWord.string.length();
+        if (strWord.startIndex > idx)
+            strLine.formatArray.push_back(TextFormat(0xffffffff, strWord.startIndex - idx));
+
+        strLine.formatArray.push_back(TextFormat(hlsl_token_color[strWord.tokenColorIndex], tokenLength));
+        idx = strWord.startIndex + tokenLength;
+    }
 }
 
 void NXTextEditor::Render_MainLayer()
@@ -553,9 +594,10 @@ void NXTextEditor::RenderTexts()
     ImVec2 windowPos = ImGui::GetWindowPos();
     ImVec2 contextArea = ImGui::GetContentRegionAvail();
     float scrollY = ImGui::GetScrollY();
-    int startRow = (int)scrollY / m_charHeight;
-    int endRow = (int)(scrollY + contextArea.y) / m_charHeight;
+    int startRow = (int)(scrollY / m_charHeight);
+    int endRow = (int)((scrollY + contextArea.y) / m_charHeight);
 
+    m_maxLineCharCount = 0;
     for (int i = 0; i < m_lines.size(); i++)
     {
         const auto& strLine = m_lines[i];
@@ -600,7 +642,7 @@ void NXTextEditor::RenderTexts()
             {
                 std::string strPart = strLine.substr(index);
 
-                ImGui::PushStyleColor(ImGuiCol_Text, ImGui::ColorConvertU32ToFloat4(-1));
+                ImGui::PushStyleColor(ImGuiCol_Text, ImGui::ColorConvertU32ToFloat4(0xffffffff));
                 ImGui::TextUnformatted(strPart.c_str());
                 ImGui::PopStyleColor();
             }
@@ -1314,4 +1356,27 @@ bool NXTextEditor::IsVariableChar(const char& ch)
 {
     // ctrl+left/right 可以跳过的字符：
     return std::isalnum(ch) || ch == '_';
+}
+
+std::vector<NXTextEditor::TextKeyword> NXTextEditor::ExtractKeywords(const TextString& text)
+{
+    std::vector<NXTextEditor::TextKeyword> words;
+    std::string word;
+    int i;
+    for(i = 0; i < text.length(); i++)
+    {
+        const char& c = text[i];
+        // 对于字母或数字的字符，将其添加到当前单词
+        if (std::isalnum(c) || c == '_') word += c;
+        else if (!word.empty())
+        {
+            // 对于非字母或数字的字符，如果当前单词不为空，则添加到words列表中，并清空当前单词
+            words.push_back({ word, i - (int)word.length() });;
+            word.clear();
+        }
+    }
+
+    // 如果最后一个单词没有被添加到words列表中，则需要在循环结束后再添加一次
+    if (!word.empty()) words.push_back({ word, i - (int)word.length() });
+    return words;
 }
