@@ -201,6 +201,8 @@ void NXTextEditor::Enter(const std::vector<std::vector<std::string>>& strArray)
                 {
                     m_lines[L.row + allLineIdx] += strPart2;
                 }
+
+                HighLightSyntax(m_lines[L.row + allLineIdx]);
             }
         }
 
@@ -261,7 +263,7 @@ void NXTextEditor::Backspace(bool bDelete, bool bCtrl)
             auto& line = m_lines[L.row];
 
             bool bNeedCombineLastLine = (L.row > 0 && L.col == 0 && !bDelete); // 需要和上一行合并：位于列首，且按了backspace；
-            bool bNeedCombineNextLine = (L.row < m_lines.size() - 1 && L.col == line.size() && bDelete); // 需要和下一行合并：位于列尾，且按了delete；
+            bool bNeedCombineNextLine = (L.row < m_lines.size() - 1 && L.col >= line.size() && bDelete); // 需要和下一行合并：位于列尾，且按了delete；
             bool bNeedCombineLines = bNeedCombineLastLine || bNeedCombineNextLine;
 
             if (!bNeedCombineLines)
@@ -286,14 +288,16 @@ void NXTextEditor::Backspace(bool bDelete, bool bCtrl)
 
                 if (!bDelete)
                 {
-                    int erasePos = std::min(L.col - eraseSize, (int)line.size());
-                    line.erase(line.begin() + erasePos, line.begin() + L.col);
-                    selection.L = selection.R = Coordinate(L.row, erasePos);
+                    int erasePosR = std::min(L.col, (int)line.size());
+                    int erasePosL = erasePosR - eraseSize;
+                    line.erase(line.begin() + erasePosL, line.begin() + erasePosR);
+                    selection.L = selection.R = Coordinate(L.row, erasePosL);
                 }
                 else
                 {
-                    int erasePos = std::min(L.col + eraseSize, (int)line.size());
-                    line.erase(line.begin() + L.col, line.begin() + erasePos);
+                    int erasePosL = std::min(L.col, (int)line.size());
+                    int erasePosR = std::min(erasePosL + eraseSize, (int)line.size());
+                    line.erase(line.begin() + erasePosL, line.begin() + erasePosR);
                 }
 
                 // 补偿计算
@@ -304,6 +308,8 @@ void NXTextEditor::Backspace(bool bDelete, bool bCtrl)
                     sel.L.col -= eraseSize;
                     sel.R.col -= eraseSize;
                 }
+
+                HighLightSyntax(m_lines[L.row]);
             }
             else // 跨行
             {
@@ -319,8 +325,10 @@ void NXTextEditor::Backspace(bool bDelete, bool bCtrl)
                 else if (bNeedCombineNextLine)
                 {
                     auto& nextLine = m_lines[L.row + 1];
+                    int lastLength = (int)line.length();
                     line.append(nextLine);
                     m_lines.erase(m_lines.begin() + L.row + 1);
+                    selection.L = selection.R = Coordinate(L.row, lastLength);
                 }
 
                 // 补偿计算
@@ -331,6 +339,9 @@ void NXTextEditor::Backspace(bool bDelete, bool bCtrl)
                     if (sel.L.row == L.row) sel.L.col += L.col; // 当在列尾 delete 时，特殊处理
                     sel.R = sel.L;
                 }
+
+                HighLightSyntax(m_lines[L.row]);
+                if (L.row + 1 < m_lines.size()) HighLightSyntax(m_lines[L.row + 1]);
             }
         }
         else
@@ -350,6 +361,8 @@ void NXTextEditor::Backspace(bool bDelete, bool bCtrl)
                     sel.L.col -= shiftLength;
                     sel.R.col -= shiftLength;
                 }
+
+                HighLightSyntax(m_lines[L.row]);
             }
             else // 多行
             {
@@ -391,6 +404,9 @@ void NXTextEditor::Backspace(bool bDelete, bool bCtrl)
                         sel.R.row -= shiftLength;
                     }
                 }
+
+                HighLightSyntax(m_lines[L.row]);
+                if (L.row + 1 < m_lines.size()) HighLightSyntax(m_lines[L.row + 1]);
             }
 
             // 更新光标位置
