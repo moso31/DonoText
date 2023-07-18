@@ -26,6 +26,7 @@
     </ClInclude>
     <ClInclude Include="..\..\TextEditor.h" />
     <ClInclude Include="NXTextEditor.h" />
+    <ClInclude Include="NXTextEditorThreadPool.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\imgui.cpp">
@@ -54,6 +55,7 @@
     </ClCompile>
     <ClCompile Include="..\..\TextEditor.cpp" />
     <ClCompile Include="NXTextEditor.cpp" />
+    <ClCompile Include="NXTextEditorThreadPool.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\README.txt" />
