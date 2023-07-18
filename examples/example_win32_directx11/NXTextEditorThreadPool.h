@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include <vector>
 #include <queue>
 #include <thread>
@@ -6,7 +6,8 @@
 #include <condition_variable>
 #include <functional>
 
-// for example: FuncType = std::function<void()>
+// 2023.7.18 使用线程池优化代码加载速度
+
 template <typename FuncType>
 class NXTextEditorThreadPool
 {

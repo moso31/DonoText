@@ -47,7 +47,7 @@ NXTextEditor::NXTextEditor(ImFont* pFont) :
 
     // 异步高亮语法
     for (int i = 0; i < m_lines.size(); i++)
-        m_threadPool.AddTaskFunc([this, i]() { HighLightSyntaxAsync(i); });
+        m_threadPool.AddTaskFunc([this, i]() { HighLightSyntax(i); });
 }
 
 void NXTextEditor::Init()
@@ -230,7 +230,12 @@ void NXTextEditor::Enter(const std::vector<std::vector<std::string>>& strArray)
                 }
 
                 SetLineUpdateTime(L.row + allLineIdx);
-                m_threadPool.AddTaskFunc([this, L, allLineIdx]() { HighLightSyntaxAsync(L.row + allLineIdx); });
+
+                // 对前两行，同步处理高亮。超过两行的，全部异步处理
+                if (allLineIdx <= 2)
+                    HighLightSyntax(L.row + allLineIdx);
+                else
+                    m_threadPool.AddTaskFunc([this, L, allLineIdx]() { HighLightSyntax(L.row + allLineIdx); });
             }
         }
 
@@ -338,7 +343,7 @@ void NXTextEditor::Backspace(bool bDelete, bool bCtrl)
                 }
 
                 SetLineUpdateTime(L.row, ImGui::GetTime());
-                m_threadPool.AddTaskFunc([this, L]() { HighLightSyntaxAsync(L.row); });
+                HighLightSyntax(L.row);
             }
             else // 跨行
             {
@@ -370,11 +375,11 @@ void NXTextEditor::Backspace(bool bDelete, bool bCtrl)
                 }
 
                 SetLineUpdateTime(L.row);
-                m_threadPool.AddTaskFunc([this, L]() { HighLightSyntaxAsync(L.row); });
+                HighLightSyntax(L.row);
                 if (L.row + 1 < m_lines.size())
                 {
                     SetLineUpdateTime(L.row + 1);
-                    m_threadPool.AddTaskFunc([this, L]() { HighLightSyntaxAsync(L.row + 1); });
+                    HighLightSyntax(L.row + 1);
                 }
             }
         }
@@ -397,7 +402,7 @@ void NXTextEditor::Backspace(bool bDelete, bool bCtrl)
                 }
 
                 SetLineUpdateTime(L.row, ImGui::GetTime());
-                HighLightSyntax(m_lines[L.row]);
+                HighLightSyntax(L.row);
             }
             else // 多行
             {
@@ -442,8 +447,8 @@ void NXTextEditor::Backspace(bool bDelete, bool bCtrl)
 
                 SetLineUpdateTime(L.row, ImGui::GetTime());
                 SetLineUpdateTime(L.row + 1, ImGui::GetTime());
-                HighLightSyntax(m_lines[L.row]);
-                if (L.row + 1 < m_lines.size()) HighLightSyntax(m_lines[L.row + 1]);
+                HighLightSyntax(L.row);
+                if (L.row + 1 < m_lines.size()) HighLightSyntax(L.row + 1);
             }
 
             // 更新光标位置
@@ -522,47 +527,7 @@ void NXTextEditor::SelectAll()
     m_selections.assign(1, { {0, 0}, {(int)m_lines.size() - 1, (int)m_lines.back().length()} });
 }
 
-void NXTextEditor::HighLightSyntax(TextString& strLine)
-{
-    std::vector<TextKeyword> strWords = ExtractKeywords(strLine);
-    for(auto& strWord : strWords)
-    {
-        for (int i = 0; i < s_hlsl_tokens.size(); i++)
-        {
-            if (strWord.tokenColorIndex != -1) break;
-            for (const auto& token : s_hlsl_tokens[i])
-            {
-                if (strWord.string == token)
-                {
-                    strWord.tokenColorIndex = i;
-                    break;
-                }
-            }
-        }
-    }
-
-    strLine.formatArray.clear();
-    int idx = 0;
-    for (const auto& strWord : strWords)
-    {
-        if (strWord.tokenColorIndex == -1) continue;
-
-        if (strWord.tokenColorIndex == 0)
-        {
-            strLine.formatArray.push_back(TextFormat(s_hlsl_token_color[strWord.tokenColorIndex], INT_MAX));
-            break;
-        }
-
-        int tokenLength = (int)strWord.string.length();
-        if (strWord.startIndex > idx)
-            strLine.formatArray.push_back(TextFormat(0xffffffff, strWord.startIndex - idx));
-
-        strLine.formatArray.push_back(TextFormat(s_hlsl_token_color[strWord.tokenColorIndex], tokenLength));
-        idx = strWord.startIndex + tokenLength;
-    }
-}
-
-void NXTextEditor::HighLightSyntaxAsync(int lineIndex)
+void NXTextEditor::HighLightSyntax(int lineIndex)
 {
     TextString strLine = m_lines[lineIndex];
     std::vector<TextKeyword> strWords = ExtractKeywords(strLine);

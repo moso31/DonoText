@@ -145,8 +145,7 @@ public:
     void Paste();
     void SelectAll();
 
-    void HighLightSyntax(TextString& string);
-    void HighLightSyntaxAsync(int lineIndex);
+    void HighLightSyntax(int lineIndex);
     void SetLineUpdateTime(int lineIndex, double manualTime = FLT_MIN);
 
 private:
