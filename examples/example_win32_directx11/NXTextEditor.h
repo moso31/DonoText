@@ -3,6 +3,7 @@
 #include <string>
 #include <algorithm>
 #include "imgui.h"
+#include "NXTextEditorThreadPool.h"
 
 class NXTextEditor
 {
@@ -226,4 +227,6 @@ private:
 
     // 记录每行的更新时间，避免异步覆盖
     std::vector<double> m_lineUpdateTime;
+
+    NXTextEditorThreadPool<std::function<void()>> m_threadPool;
 };

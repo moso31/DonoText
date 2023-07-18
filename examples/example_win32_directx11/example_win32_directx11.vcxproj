@@ -171,7 +171,6 @@
     <ClCompile Include="..\..\TextEditor.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="NXTextEditor.cpp" />
-    <ClCompile Include="NXTextEditorThreadPool.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\misc\debuggers\imgui.natstepfilter" />

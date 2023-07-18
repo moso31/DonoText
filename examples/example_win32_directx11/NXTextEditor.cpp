@@ -29,7 +29,8 @@ std::vector<ImU32> NXTextEditor::s_hlsl_token_color =
 };
 
 NXTextEditor::NXTextEditor(ImFont* pFont) :
-    m_pFont(pFont)
+    m_pFont(pFont),
+    m_threadPool(2)
 {
 	// 逐行读取某个文件的文本信息 
 	//std::ifstream file("..\\..\\imgui_demo.cpp");
@@ -39,13 +40,14 @@ NXTextEditor::NXTextEditor(ImFont* pFont) :
 	// 逐行读取文件内容到 m_lines 
 	TextString line;
 	while (std::getline(file, line))
-	{
-        line.formatArray.clear();
-        HighLightSyntax(line);
-		m_lines.push_back(line);
-	}
+        m_lines.push_back(line);
 
+    // 初始化每行的更新时间
     m_lineUpdateTime.assign(m_lines.size(), ImGui::GetTime());
+
+    // 异步高亮语法
+    for (int i = 0; i < m_lines.size(); i++)
+        m_threadPool.AddTaskFunc([this, i]() { HighLightSyntaxAsync(i); });
 }
 
 void NXTextEditor::Init()
@@ -228,7 +230,7 @@ void NXTextEditor::Enter(const std::vector<std::vector<std::string>>& strArray)
                 }
 
                 SetLineUpdateTime(L.row + allLineIdx);
-                std::future<void> future = std::async(std::launch::async, [this, L, allLineIdx]() { HighLightSyntaxAsync(L.row + allLineIdx); });
+                m_threadPool.AddTaskFunc([this, L, allLineIdx]() { HighLightSyntaxAsync(L.row + allLineIdx); });
             }
         }
 
@@ -336,7 +338,7 @@ void NXTextEditor::Backspace(bool bDelete, bool bCtrl)
                 }
 
                 SetLineUpdateTime(L.row, ImGui::GetTime());
-                std::future<void> future = std::async(std::launch::async, [this, L]() { HighLightSyntaxAsync(L.row); });
+                m_threadPool.AddTaskFunc([this, L]() { HighLightSyntaxAsync(L.row); });
             }
             else // 跨行
             {
@@ -368,11 +370,11 @@ void NXTextEditor::Backspace(bool bDelete, bool bCtrl)
                 }
 
                 SetLineUpdateTime(L.row);
-                std::future<void> future = std::async(std::launch::async, [this, L]() { HighLightSyntaxAsync(L.row); });
+                m_threadPool.AddTaskFunc([this, L]() { HighLightSyntaxAsync(L.row); });
                 if (L.row + 1 < m_lines.size())
                 {
                     SetLineUpdateTime(L.row + 1);
-                    std::future<void> futureNextLine = std::async(std::launch::async, [this, L]() { HighLightSyntaxAsync(L.row + 1); });
+                    m_threadPool.AddTaskFunc([this, L]() { HighLightSyntaxAsync(L.row + 1); });
                 }
             }
         }
