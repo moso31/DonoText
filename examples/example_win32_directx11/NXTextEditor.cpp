@@ -2,7 +2,31 @@
 #include <fstream>
 #include <iostream>
 #include <cctype>
-#include <map>
+#include <future>
+
+// static variables
+std::vector<std::vector<std::string>> const NXTextEditor::s_hlsl_tokens =
+{
+    // comment
+    {"//"},
+    // values
+    { "void", "true", "false", "bool", "int", "uint", "dword", "half", "float", "double", "min16float", "min10float", "min16int", "min12int", "min16uint", "bool1", "bool2", "bool3", "bool4", "int1", "int2", "int3", "int4", "uint1", "uint2", "uint3", "uint4", "dword1", "dword2", "dword3", "dword4", "half1", "half2", "half3", "half4", "float1", "float2", "float3", "float4", "double1", "double2", "double3", "double4", "min16float1", "min16float2", "min16float3", "min16float4", "min10float1", "min10float2", "min10float3", "min10float4", "min16int1", "min16int2", "min16int3", "min16int4", "min12int1", "min12int2", "min12int3", "min12int4", "min16uint1", "min16uint2", "min16uint3", "min16uint4", "float1x1", "float1x2", "float1x3", "float1x4", "float2x1", "float2x2", "float2x3", "float2x4", "float3x1", "float3x2", "float3x3", "float3x4", "float4x1", "float4x2", "float4x3", "float4x4", "double1x1", "double1x2", "double1x3", "double1x4", "double2x1", "double2x2", "double2x3", "double2x4", "double3x1", "double3x2", "double3x3", "double3x4", "double4x1", "double4x2", "double4x3", "double4x4", "vector", "matrix", "extern", "nointerpolation", "precise", "shared", "groupshared", "static", "uniform", "volatile", "const", "row_major", "column_major", "packoffset", "register" },
+    // types
+    { "string", "Buffer", "texture", "sampler", "sampler1D", "sampler2D", "sampler3D", "samplerCUBE", "sampler_state", "SamplerState", "SamplerComparisonState", "AppendStructuredBuffer", "Buffer", "ByteAddressBuffer", "ConsumeStructuredBuffer", "InputPatch", "OutputPatch", "RWBuffer", "RWByteAddressBuffer", "RWStructuredBuffer", "RWTexture1D", "RWTexture1DArray", "RWTexture2D", "RWTexture2DArray", "RWTexture3D", "StructuredBuffer", "Texture1D", "Texture1DArray", "Texture2D", "Texture2DArray", "Texture3D", "Texture2DMS", "Texture2DMSArray", "TextureCube", "TextureCubeArray" },
+    // conditional branches
+    { "if", "else", "for", "while", "do", "switch", "case", "default", "break", "continue", "discard", "return" },
+    // methods
+    { "abort", "abs", "acos", "all", "AllMemoryBarrier", "AllMemoryBarrierWithGroupSync", "any", "asdouble", "asfloat", "asin", "asint", "asuint", "atan", "atan2", "ceil", "CheckAccessFullyMapped", "clamp", "clip", "cos", "cosh", "countbits", "cross", "D3DCOLORtoUBYTE4", "ddx", "ddx_coarse", "ddx_fine", "ddy", "ddy_coarse", "ddy_fine", "degrees", "determinant", "DeviceMemoryBarrier", "DeviceMemoryBarrierWithGroupSync", "distance", "dot", "dst", "errorf", "EvaluateAttributeCentroid", "EvaluateAttributeAtSample", "EvaluateAttributeSnapped", "exp", "exp2", "f16tof32", "f32tof16", "faceforward", "firstbithigh", "firstbitlow", "floor", "fma", "fmod", "frac", "frexp", "fwidth", "GetRenderTargetSampleCount", "GetRenderTargetSamplePosition", "GroupMemoryBarrier", "GroupMemoryBarrierWithGroupSync", "InterlockedAdd", "InterlockedAnd", "InterlockedCompareExchange", "InterlockedCompareStore", "InterlockedExchange", "InterlockedMax", "InterlockedMin", "InterlockedOr", "InterlockedXor", "isfinite", "isinf", "isnan", "ldexp", "length", "lerp", "lit", "log", "log10", "log2", "mad", "max", "min", "modf", "msad4", "mul", "noise", "normalize", "pow", "printf", "Process2DQuadTessFactorsAvg", "Process2DQuadTessFactorsMax", "Process2DQuadTessFactorsMin", "ProcessIsolineTessFactors", "ProcessQuadTessFactorsAvg", "ProcessQuadTessFactorsMax", "ProcessQuadTessFactorsMin", "ProcessTriTessFactorsAvg", "ProcessTriTessFactorsMax", "ProcessTriTessFactorsMin", "radians", "rcp", "reflect", "refract", "reversebits", "round", "rsqrt", "saturate", "sign", "sin", "sincos", "sinh", "smoothstep", "sqrt", "step", "tan", "tanh", "tex1D", "tex1Dgrad", "tex1Dlod", "tex1Dproj", "tex2D", "tex2Dgrad", "tex2Dlod", "tex2Dproj", "tex3D", "tex3Dgrad", "tex3Dlod", "tex3Dproj", "texCUBE", "texCUBEgrad", "texCUBElod", "texCUBEproj", "transpose", "trunc" },
+};
+
+std::vector<ImU32> NXTextEditor::s_hlsl_token_color =
+{
+       0xff4fff4f, // comments
+       0xffff9f4f, // values
+       0xff00ffff, // types
+       0xffff6fff, // conditional branches
+       0xffffff4f, // methods
+};
 
 NXTextEditor::NXTextEditor(ImFont* pFont) :
     m_pFont(pFont)
@@ -11,7 +35,6 @@ NXTextEditor::NXTextEditor(ImFont* pFont) :
 	//std::ifstream file("..\\..\\imgui_demo.cpp");
 	//std::ifstream file("..\\..\\license.txt");
 	std::ifstream file("..\\..\\a.txt");
-    //std::ifstream file("D:\\Users\\Administrator\\Source\\Repos\\DonoText\\imgui_demo.cpp");
 
 	// 逐行读取文件内容到 m_lines 
 	TextString line;
@@ -21,6 +44,8 @@ NXTextEditor::NXTextEditor(ImFont* pFont) :
         HighLightSyntax(line);
 		m_lines.push_back(line);
 	}
+
+    m_lineUpdateTime.assign(m_lines.size(), ImGui::GetTime());
 }
 
 void NXTextEditor::Init()
@@ -202,7 +227,8 @@ void NXTextEditor::Enter(const std::vector<std::vector<std::string>>& strArray)
                     m_lines[L.row + allLineIdx] += strPart2;
                 }
 
-                HighLightSyntax(m_lines[L.row + allLineIdx]);
+                SetLineUpdateTime(L.row + allLineIdx);
+                std::future<void> future = std::async(std::launch::async, [this, L, allLineIdx]() { HighLightSyntaxAsync(L.row + allLineIdx); });
             }
         }
 
@@ -309,7 +335,8 @@ void NXTextEditor::Backspace(bool bDelete, bool bCtrl)
                     sel.R.col -= eraseSize;
                 }
 
-                HighLightSyntax(m_lines[L.row]);
+                SetLineUpdateTime(L.row, ImGui::GetTime());
+                std::future<void> future = std::async(std::launch::async, [this, L]() { HighLightSyntaxAsync(L.row); });
             }
             else // 跨行
             {
@@ -340,8 +367,13 @@ void NXTextEditor::Backspace(bool bDelete, bool bCtrl)
                     sel.R = sel.L;
                 }
 
-                HighLightSyntax(m_lines[L.row]);
-                if (L.row + 1 < m_lines.size()) HighLightSyntax(m_lines[L.row + 1]);
+                SetLineUpdateTime(L.row);
+                std::future<void> future = std::async(std::launch::async, [this, L]() { HighLightSyntaxAsync(L.row); });
+                if (L.row + 1 < m_lines.size())
+                {
+                    SetLineUpdateTime(L.row + 1);
+                    std::future<void> futureNextLine = std::async(std::launch::async, [this, L]() { HighLightSyntaxAsync(L.row + 1); });
+                }
             }
         }
         else
@@ -362,6 +394,7 @@ void NXTextEditor::Backspace(bool bDelete, bool bCtrl)
                     sel.R.col -= shiftLength;
                 }
 
+                SetLineUpdateTime(L.row, ImGui::GetTime());
                 HighLightSyntax(m_lines[L.row]);
             }
             else // 多行
@@ -405,6 +438,8 @@ void NXTextEditor::Backspace(bool bDelete, bool bCtrl)
                     }
                 }
 
+                SetLineUpdateTime(L.row, ImGui::GetTime());
+                SetLineUpdateTime(L.row + 1, ImGui::GetTime());
                 HighLightSyntax(m_lines[L.row]);
                 if (L.row + 1 < m_lines.size()) HighLightSyntax(m_lines[L.row + 1]);
             }
@@ -487,35 +522,13 @@ void NXTextEditor::SelectAll()
 
 void NXTextEditor::HighLightSyntax(TextString& strLine)
 {
-    // 生成 某行代码文本的高亮
-    static std::vector<std::vector<std::string>> const hlsl_tokens = {
-        // comment
-        {"//"},
-        // values
-        { "void", "true", "false", "bool", "int", "uint", "dword", "half", "float", "double", "min16float", "min10float", "min16int", "min12int", "min16uint", "bool1", "bool2", "bool3", "bool4", "int1", "int2", "int3", "int4", "uint1", "uint2", "uint3", "uint4", "dword1", "dword2", "dword3", "dword4", "half1", "half2", "half3", "half4", "float1", "float2", "float3", "float4", "double1", "double2", "double3", "double4", "min16float1", "min16float2", "min16float3", "min16float4", "min10float1", "min10float2", "min10float3", "min10float4", "min16int1", "min16int2", "min16int3", "min16int4", "min12int1", "min12int2", "min12int3", "min12int4", "min16uint1", "min16uint2", "min16uint3", "min16uint4", "float1x1", "float1x2", "float1x3", "float1x4", "float2x1", "float2x2", "float2x3", "float2x4", "float3x1", "float3x2", "float3x3", "float3x4", "float4x1", "float4x2", "float4x3", "float4x4", "double1x1", "double1x2", "double1x3", "double1x4", "double2x1", "double2x2", "double2x3", "double2x4", "double3x1", "double3x2", "double3x3", "double3x4", "double4x1", "double4x2", "double4x3", "double4x4", "vector", "matrix", "extern", "nointerpolation", "precise", "shared", "groupshared", "static", "uniform", "volatile", "const", "row_major", "column_major", "packoffset", "register" },
-        // types
-        { "string", "Buffer", "texture", "sampler", "sampler1D", "sampler2D", "sampler3D", "samplerCUBE", "sampler_state", "SamplerState", "SamplerComparisonState", "AppendStructuredBuffer", "Buffer", "ByteAddressBuffer", "ConsumeStructuredBuffer", "InputPatch", "OutputPatch", "RWBuffer", "RWByteAddressBuffer", "RWStructuredBuffer", "RWTexture1D", "RWTexture1DArray", "RWTexture2D", "RWTexture2DArray", "RWTexture3D", "StructuredBuffer", "Texture1D", "Texture1DArray", "Texture2D", "Texture2DArray", "Texture3D", "Texture2DMS", "Texture2DMSArray", "TextureCube", "TextureCubeArray" },
-        // conditional branches
-        { "if", "else", "for", "while", "do", "switch", "case", "default", "break", "continue", "discard", "return" },
-        // methods
-        { "abort", "abs", "acos", "all", "AllMemoryBarrier", "AllMemoryBarrierWithGroupSync", "any", "asdouble", "asfloat", "asin", "asint", "asuint", "atan", "atan2", "ceil", "CheckAccessFullyMapped", "clamp", "clip", "cos", "cosh", "countbits", "cross", "D3DCOLORtoUBYTE4", "ddx", "ddx_coarse", "ddx_fine", "ddy", "ddy_coarse", "ddy_fine", "degrees", "determinant", "DeviceMemoryBarrier", "DeviceMemoryBarrierWithGroupSync", "distance", "dot", "dst", "errorf", "EvaluateAttributeCentroid", "EvaluateAttributeAtSample", "EvaluateAttributeSnapped", "exp", "exp2", "f16tof32", "f32tof16", "faceforward", "firstbithigh", "firstbitlow", "floor", "fma", "fmod", "frac", "frexp", "fwidth", "GetRenderTargetSampleCount", "GetRenderTargetSamplePosition", "GroupMemoryBarrier", "GroupMemoryBarrierWithGroupSync", "InterlockedAdd", "InterlockedAnd", "InterlockedCompareExchange", "InterlockedCompareStore", "InterlockedExchange", "InterlockedMax", "InterlockedMin", "InterlockedOr", "InterlockedXor", "isfinite", "isinf", "isnan", "ldexp", "length", "lerp", "lit", "log", "log10", "log2", "mad", "max", "min", "modf", "msad4", "mul", "noise", "normalize", "pow", "printf", "Process2DQuadTessFactorsAvg", "Process2DQuadTessFactorsMax", "Process2DQuadTessFactorsMin", "ProcessIsolineTessFactors", "ProcessQuadTessFactorsAvg", "ProcessQuadTessFactorsMax", "ProcessQuadTessFactorsMin", "ProcessTriTessFactorsAvg", "ProcessTriTessFactorsMax", "ProcessTriTessFactorsMin", "radians", "rcp", "reflect", "refract", "reversebits", "round", "rsqrt", "saturate", "sign", "sin", "sincos", "sinh", "smoothstep", "sqrt", "step", "tan", "tanh", "tex1D", "tex1Dgrad", "tex1Dlod", "tex1Dproj", "tex2D", "tex2Dgrad", "tex2Dlod", "tex2Dproj", "tex3D", "tex3Dgrad", "tex3Dlod", "tex3Dproj", "texCUBE", "texCUBEgrad", "texCUBElod", "texCUBEproj", "transpose", "trunc" },
-    };
-
-    static std::vector<ImU32> hlsl_token_color = {
-        0xff4fff4f, // comments
-        0xffff9f4f, // values
-        0xff00ffff, // types
-        0xffff6fff, // conditional branches
-        0xffffff4f, // methods
-    };
-
     std::vector<TextKeyword> strWords = ExtractKeywords(strLine);
     for(auto& strWord : strWords)
     {
-        for (int i = 0; i < hlsl_tokens.size(); i++)
+        for (int i = 0; i < s_hlsl_tokens.size(); i++)
         {
             if (strWord.tokenColorIndex != -1) break;
-            for (const auto& token : hlsl_tokens[i])
+            for (const auto& token : s_hlsl_tokens[i])
             {
                 if (strWord.string == token)
                 {
@@ -534,7 +547,7 @@ void NXTextEditor::HighLightSyntax(TextString& strLine)
 
         if (strWord.tokenColorIndex == 0)
         {
-            strLine.formatArray.push_back(TextFormat(hlsl_token_color[strWord.tokenColorIndex], INT_MAX));
+            strLine.formatArray.push_back(TextFormat(s_hlsl_token_color[strWord.tokenColorIndex], INT_MAX));
             break;
         }
 
@@ -542,9 +555,66 @@ void NXTextEditor::HighLightSyntax(TextString& strLine)
         if (strWord.startIndex > idx)
             strLine.formatArray.push_back(TextFormat(0xffffffff, strWord.startIndex - idx));
 
-        strLine.formatArray.push_back(TextFormat(hlsl_token_color[strWord.tokenColorIndex], tokenLength));
+        strLine.formatArray.push_back(TextFormat(s_hlsl_token_color[strWord.tokenColorIndex], tokenLength));
         idx = strWord.startIndex + tokenLength;
     }
+}
+
+void NXTextEditor::HighLightSyntaxAsync(int lineIndex)
+{
+    TextString strLine = m_lines[lineIndex];
+    std::vector<TextKeyword> strWords = ExtractKeywords(strLine);
+    for (auto& strWord : strWords)
+    {
+        for (int i = 0; i < s_hlsl_tokens.size(); i++)
+        {
+            if (strWord.tokenColorIndex != -1) break;
+            for (const auto& token : s_hlsl_tokens[i])
+            {
+                if (strWord.string == token)
+                {
+                    strWord.tokenColorIndex = i;
+                    break;
+                }
+            }
+        }
+    }
+
+    strLine.formatArray.clear();
+    int idx = 0;
+    for (const auto& strWord : strWords)
+    {
+        if (strWord.tokenColorIndex == -1) continue;
+
+        if (strWord.tokenColorIndex == 0)
+        {
+            strLine.formatArray.push_back(TextFormat(s_hlsl_token_color[strWord.tokenColorIndex], INT_MAX));
+            break;
+        }
+
+        int tokenLength = (int)strWord.string.length();
+        if (strWord.startIndex > idx)
+            strLine.formatArray.push_back(TextFormat(0xffffffff, strWord.startIndex - idx));
+
+        strLine.formatArray.push_back(TextFormat(s_hlsl_token_color[strWord.tokenColorIndex], tokenLength));
+        idx = strWord.startIndex + tokenLength;
+    }
+
+    // callback
+    double currTime = ImGui::GetTime();
+    if (currTime >= m_lineUpdateTime[lineIndex])
+    {
+        m_lineUpdateTime[lineIndex] = currTime;
+        m_lines[lineIndex] = strLine;
+    }
+}
+
+void NXTextEditor::SetLineUpdateTime(int lineIndex, double manualTime)
+{
+    double time = manualTime == FLT_MIN ? ImGui::GetTime() : manualTime;
+    if (m_lineUpdateTime.size() < m_lines.size())
+        m_lineUpdateTime.insert(m_lineUpdateTime.end(), m_lines.size() - m_lineUpdateTime.size(), time);
+    m_lineUpdateTime[lineIndex] = time;
 }
 
 void NXTextEditor::Render_MainLayer()

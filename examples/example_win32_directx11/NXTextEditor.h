@@ -119,6 +119,12 @@ class NXTextEditor
         int tokenColorIndex = -1;
     };
 
+    // 语法高亮关键词
+    static std::vector<std::vector<std::string>> const s_hlsl_tokens;
+
+    // 语法高亮关键词颜色
+    static std::vector<ImU32> s_hlsl_token_color;
+
 public:
     NXTextEditor(ImFont* pFont);
     ~NXTextEditor() {}
@@ -139,6 +145,8 @@ public:
     void SelectAll();
 
     void HighLightSyntax(TextString& string);
+    void HighLightSyntaxAsync(int lineIndex);
+    void SetLineUpdateTime(int lineIndex, double manualTime = FLT_MIN);
 
 private:
     void Render_MainLayer();
@@ -215,4 +223,7 @@ private:
     bool m_bNeedFocusOnText = true;
 
     ImFont* m_pFont;
+
+    // 记录每行的更新时间，避免异步覆盖
+    std::vector<double> m_lineUpdateTime;
 };
