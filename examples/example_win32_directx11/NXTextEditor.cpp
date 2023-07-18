@@ -1137,7 +1137,6 @@ void NXTextEditor::RenderTexts_OnKeyInputs()
 	bool bAlt = io.KeyAlt;
 	bool bShift = io.KeyShift;
 	bool bCtrl = io.KeyCtrl;
-	bool bModify = bAlt || bShift || bCtrl;
 
     if (ImGui::IsWindowFocused())
     {
@@ -1154,7 +1153,6 @@ void NXTextEditor::RenderTexts_OnKeyInputs()
         bool bKeyPageDownPressed = ImGui::IsKeyPressed(ImGuiKey_PageDown);
         bool bDeletePressed = ImGui::IsKeyPressed(ImGuiKey_Delete);
         bool bBackspacePressed = ImGui::IsKeyPressed(ImGuiKey_Backspace);
-        bool bInsertPressed = ImGui::IsKeyDown(ImGuiKey_Insert);
         bool bEnterPressed = ImGui::IsKeyPressed(ImGuiKey_Enter);
         bool bEscPressed = ImGui::IsKeyPressed(ImGuiKey_Escape);
 

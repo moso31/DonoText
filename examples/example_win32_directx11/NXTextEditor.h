@@ -1,12 +1,76 @@
 ﻿#pragma once
 #include <vector>
+#include <queue>
 #include <string>
 #include <algorithm>
+#include <thread>
+#include <mutex>
+#include <condition_variable>
+#include <functional>
 #include "imgui.h"
-#include "NXTextEditorThreadPool.h"
 
 class NXTextEditor
 {
+    class ThreadPool
+    {
+    public:
+        ThreadPool(const ThreadPool&) = delete;
+        ThreadPool& operator=(const ThreadPool&) = delete;
+
+        ThreadPool(int threadCount = 4)
+        {
+            m_threads.resize(threadCount);
+            for (auto& thread : m_threads)
+            {
+                thread = std::thread([this]() {
+                    while (!m_bShutdown)
+                    {
+                        std::function<void()> task;
+                        {
+                            std::unique_lock<std::mutex> lock(m_mutex);
+                            m_condition.wait(lock, [this]() { return m_bShutdown || !m_tasks.empty(); });
+                            task = std::move(m_tasks.front());
+                            m_tasks.pop();
+                        }
+                        if (task) task();
+                    }
+                    });
+            }
+        }
+
+        void Shutdown()
+        {
+            m_bShutdown = true;
+            m_condition.notify_all();
+            for (auto& thread : m_threads)
+            {
+                if (thread.joinable())
+                    thread.join();
+            }
+        }
+
+        void AddTaskFunc(std::function<void()> func)
+        {
+            if (m_bShutdown) return;
+            {
+                std::unique_lock<std::mutex> lock(m_mutex);
+                m_tasks.push(func);
+            }
+            m_condition.notify_one();
+        }
+
+        ~ThreadPool() { Shutdown(); }
+
+    private:
+        std::vector<std::thread> m_threads;
+        std::queue<std::function<void()>> m_tasks;
+
+        std::condition_variable m_condition;
+        std::mutex m_mutex;
+
+        std::atomic_bool m_bShutdown = false;
+    };
+
     struct Coordinate
     {
         Coordinate() : row(0), col(0) {}
@@ -222,10 +286,13 @@ private:
 
     bool m_bNeedFocusOnText = true;
 
+    // 使用的字体（最好为此TextEditor单独设置一个字体）
     ImFont* m_pFont;
 
     // 记录每行的更新时间，避免异步覆盖
     std::vector<double> m_lineUpdateTime;
 
-    NXTextEditorThreadPool<std::function<void()>> m_threadPool;
+    // 2023.7.18 使用线程池优化高亮逻辑
+    // 当进行较多行的复制操作时，异步处理高亮
+    NXTextEditor::ThreadPool m_threadPool;
 };

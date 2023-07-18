@@ -158,7 +158,6 @@
     <ClInclude Include="..\..\backends\imgui_impl_win32.h" />
     <ClInclude Include="..\..\TextEditor.h" />
     <ClInclude Include="NXTextEditor.h" />
-    <ClInclude Include="NXTextEditorThreadPool.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\imgui.cpp" />
