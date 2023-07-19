@@ -34,6 +34,8 @@ NXTextEditor::NXTextEditor(ImFont* pFont) :
     m_pFont(pFont),
     m_threadPool(2)
 {
+    return;
+
 	// 逐行读取某个文件的文本信息 
 	std::ifstream file("..\\..\\imgui_demo.cpp");
 	//std::ifstream file("..\\..\\license.txt");
