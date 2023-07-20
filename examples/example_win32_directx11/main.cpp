@@ -180,12 +180,13 @@ int main(int, char**)
         static bool bEditor = true;
         //editor.Render("eee");
 
-        static NXTextEditor nxEditor(pFont0);
+        static NXGUICodeEditor nxEditor(pFont0);
         static bool bInit = false;
         if (!bInit)
         {
             bInit = true;
-            nxEditor.Init();
+            std::filesystem::path path = "../../a.txt";
+            nxEditor.Load(path);
         }
         nxEditor.Render(); 
 

@@ -7,9 +7,13 @@
 #include <mutex>
 #include <condition_variable>
 #include <functional>
+#include <fstream>
+#include <iostream>
+#include <cctype>
+#include <filesystem>
 #include "imgui.h"
 
-class NXTextEditor
+class NXGUICodeEditor
 {
     class ThreadPool
     {
@@ -29,6 +33,8 @@ class NXTextEditor
                         {
                             std::unique_lock<std::mutex> lock(m_mutex);
                             m_condition.wait(lock, [this]() { return m_bShutdown || !m_tasks.empty(); });
+
+                            if (m_tasks.empty()) return;
                             task = std::move(m_tasks.front());
                             m_tasks.pop();
                         }
@@ -57,6 +63,16 @@ class NXTextEditor
                 m_tasks.push(func);
             }
             m_condition.notify_one();
+        }
+
+        void ClearTaskFunc()
+        {
+            if (m_bShutdown) return;
+            {
+                std::unique_lock<std::mutex> lock(m_mutex);
+                std::queue<std::function<void()>> empty;
+                std::swap(m_tasks, empty);
+            }
         }
 
         ~ThreadPool() { Shutdown(); }
@@ -191,11 +207,13 @@ class NXTextEditor
     static std::vector<ImU32> s_hlsl_token_color;
 
 public:
-    NXTextEditor(ImFont* pFont);
-    ~NXTextEditor() {}
+    NXGUICodeEditor(ImFont* pFont);
+    ~NXGUICodeEditor() {}
 
-    void Init();
+    void Load(const std::filesystem::path& filePath);
+    void Load(const std::string& text);
     void Render();
+    std::string Text();
 
     void AddSelection(const Coordinate& A, const Coordinate& B);
     void RemoveSelection(const SelectionInfo& removeSelection);
@@ -294,5 +312,5 @@ private:
 
     // 2023.7.18 使用线程池优化高亮逻辑
     // 当进行较多行的复制操作时，异步处理高亮
-    NXTextEditor::ThreadPool m_threadPool;
+    NXGUICodeEditor::ThreadPool m_threadPool;
 };

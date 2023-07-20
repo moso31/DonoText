@@ -1,13 +1,9 @@
 ﻿#include "NXTextEditor.h"
-#include <fstream>
-#include <iostream>
-#include <cctype>
-#include <future>
 
 #define YEAH_RAINBOW
 
 // static variables
-std::vector<std::vector<std::string>> const NXTextEditor::s_hlsl_tokens =
+std::vector<std::vector<std::string>> const NXGUICodeEditor::s_hlsl_tokens =
 {
     // comment
     {"//"},
@@ -21,7 +17,7 @@ std::vector<std::vector<std::string>> const NXTextEditor::s_hlsl_tokens =
     { "abort", "abs", "acos", "all", "AllMemoryBarrier", "AllMemoryBarrierWithGroupSync", "any", "asdouble", "asfloat", "asin", "asint", "asuint", "atan", "atan2", "ceil", "CheckAccessFullyMapped", "clamp", "clip", "cos", "cosh", "countbits", "cross", "D3DCOLORtoUBYTE4", "ddx", "ddx_coarse", "ddx_fine", "ddy", "ddy_coarse", "ddy_fine", "degrees", "determinant", "DeviceMemoryBarrier", "DeviceMemoryBarrierWithGroupSync", "distance", "dot", "dst", "errorf", "EvaluateAttributeCentroid", "EvaluateAttributeAtSample", "EvaluateAttributeSnapped", "exp", "exp2", "f16tof32", "f32tof16", "faceforward", "firstbithigh", "firstbitlow", "floor", "fma", "fmod", "frac", "frexp", "fwidth", "GetRenderTargetSampleCount", "GetRenderTargetSamplePosition", "GroupMemoryBarrier", "GroupMemoryBarrierWithGroupSync", "InterlockedAdd", "InterlockedAnd", "InterlockedCompareExchange", "InterlockedCompareStore", "InterlockedExchange", "InterlockedMax", "InterlockedMin", "InterlockedOr", "InterlockedXor", "isfinite", "isinf", "isnan", "ldexp", "length", "lerp", "lit", "log", "log10", "log2", "mad", "max", "min", "modf", "msad4", "mul", "noise", "normalize", "pow", "printf", "Process2DQuadTessFactorsAvg", "Process2DQuadTessFactorsMax", "Process2DQuadTessFactorsMin", "ProcessIsolineTessFactors", "ProcessQuadTessFactorsAvg", "ProcessQuadTessFactorsMax", "ProcessQuadTessFactorsMin", "ProcessTriTessFactorsAvg", "ProcessTriTessFactorsMax", "ProcessTriTessFactorsMin", "radians", "rcp", "reflect", "refract", "reversebits", "round", "rsqrt", "saturate", "sign", "sin", "sincos", "sinh", "smoothstep", "sqrt", "step", "tan", "tanh", "tex1D", "tex1Dgrad", "tex1Dlod", "tex1Dproj", "tex2D", "tex2Dgrad", "tex2Dlod", "tex2Dproj", "tex3D", "tex3Dgrad", "tex3Dlod", "tex3Dproj", "texCUBE", "texCUBEgrad", "texCUBElod", "texCUBEproj", "transpose", "trunc" },
 };
 
-std::vector<ImU32> NXTextEditor::s_hlsl_token_color =
+std::vector<ImU32> NXGUICodeEditor::s_hlsl_token_color =
 {
        0xff4fff4f, // comments
        0xffff9f4f, // values
@@ -30,48 +26,9 @@ std::vector<ImU32> NXTextEditor::s_hlsl_token_color =
        0xffffff4f, // methods
 };
 
-NXTextEditor::NXTextEditor(ImFont* pFont) :
+NXGUICodeEditor::NXGUICodeEditor(ImFont* pFont) :
     m_pFont(pFont),
     m_threadPool(2)
-{
-    return;
-
-	// 逐行读取某个文件的文本信息 
-	std::ifstream file("..\\..\\imgui_demo.cpp");
-	//std::ifstream file("..\\..\\license.txt");
-	//std::ifstream file("..\\..\\a.txt");
-
-	// 逐行读取文件内容到 m_lines 
-	TextString line;
-	while (std::getline(file, line))
-    {
-#ifdef YEAH_RAINBOW
-        line.formatArray.clear();
-        for (int i = 0; i < 50; i++)
-        {
-            int cr = (rand() & 0xaf) + 0x50;
-            int cg = (rand() & 0xaf) + 0x50; cg <<= 8;
-            int cb = (rand() & 0xaf) + 0x50; cb <<= 16;
-            ImU32 random = cg | cb | cr | 0xff000000;
-            line.formatArray.push_back(TextFormat(random, rand() % 5 + 1));
-        }
-#endif
-        m_lines.push_back(line);
-    }
-
-    // 初始化每行的更新时间
-    m_lineUpdateTime.assign(m_lines.size(), ImGui::GetTime());
-
-#ifdef YEAH_RAINBOW
-    return;
-#endif
-
-    // 异步高亮语法
-    for (int i = 0; i < m_lines.size(); i++)
-        m_threadPool.AddTaskFunc([this, i]() { HighLightSyntax(i); });
-}
-
-void NXTextEditor::Init()
 {
     // get single char size of font
     const ImVec2 fontSize = m_pFont->CalcTextSizeA(m_pFont->FontSize, FLT_MAX, -1.0f, " ");
@@ -87,7 +44,102 @@ void NXTextEditor::Init()
     CalcLineNumberRectWidth();
 }
 
-void NXTextEditor::Render()
+void NXGUICodeEditor::Load(const std::filesystem::path& filePath)
+{
+    // 逐行读取某个文件的文本信息 
+    std::ifstream file(filePath);
+
+    if (file.is_open())
+    {
+        m_bIsSelecting = false;
+        m_bNeedFocusOnText = true;
+        m_selections.clear();
+        m_overlaySelectCheck.clear();
+        m_threadPool.ClearTaskFunc();
+
+        // 逐行读取文件内容到 m_lines 
+        TextString line;
+        while (std::getline(file, line))
+        {
+            // 将所有 tab 替换成 4 spaces
+            for (int i = 0; i < line.size(); i++)
+            {
+                if (line[i] == '\t')
+                {
+                    line.replace(i, 1, "    ");
+                    i += 3;
+                }
+            }
+
+            m_lines.push_back(line);
+        }
+
+        // 初始化每行的更新时间
+        m_lineUpdateTime.assign(m_lines.size(), ImGui::GetTime());
+
+        // 异步高亮语法
+        for (int i = 0; i < m_lines.size(); i++)
+            m_threadPool.AddTaskFunc([this, i]() { HighLightSyntax(i); });
+    }
+
+    file.close();
+}
+
+void NXGUICodeEditor::Load(const std::string& text)
+{
+    m_bIsSelecting = false;
+    m_bNeedFocusOnText = true;
+    m_selections.clear();
+    m_overlaySelectCheck.clear();
+    m_threadPool.ClearTaskFunc();
+
+    m_lines.clear();
+
+    // 按 "\n" 拆分 text
+    size_t start = 0;
+    size_t end = text.find("\n");
+
+    while (end != std::string::npos)
+    {
+        // 然后逐行加载到 m_lines 
+        std::string line(text.substr(start, end - start));
+
+        // 将所有 tab 替换成 4 spaces
+        for (int i = 0; i < line.size(); i++)
+        {
+            if (line[i] == '\t')
+            {
+                line.replace(i, 1, "    ");
+                i += 3;
+            }
+        }
+
+        m_lines.push_back(line);
+        start = end + 1;
+        end = text.find("\n", start);
+    }
+
+    // 把最后一行也加入到 m_lines 中
+    std::string line(text.substr(start, end - start));
+    for (int i = 0; i < line.size(); i++)
+    {
+        if (line[i] == '\t')
+        {
+            line.replace(i, 1, "    ");
+            i += 3;
+        }
+    }
+    m_lines.push_back(line);
+
+    // 初始化每行的更新时间
+    m_lineUpdateTime.assign(m_lines.size(), ImGui::GetTime());
+
+    // 异步高亮语法
+    for (int i = 0; i < m_lines.size(); i++)
+        m_threadPool.AddTaskFunc([this, i]() { HighLightSyntax(i); });
+}
+
+void NXGUICodeEditor::Render()
 {
     ImGui::PushFont(m_pFont);
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 4.0f));
@@ -126,23 +178,35 @@ void NXTextEditor::Render()
     ImGui::PopFont();
 }
 
-void NXTextEditor::AddSelection(const Coordinate& A, const Coordinate& B)
+std::string NXGUICodeEditor::Text()
+{
+    std::string text;
+    for (int i = 0; i < m_lines.size(); i++)
+    {
+        text += m_lines[i];
+        if (i != m_lines.size() - 1)
+            text += "\n";
+    }
+    return text;
+}
+
+void NXGUICodeEditor::AddSelection(const Coordinate& A, const Coordinate& B)
 {
     SelectionInfo selection(A, B);
 	m_selections.push_back(selection);
 }
 
-void NXTextEditor::RemoveSelection(const SelectionInfo& removeSelection)
+void NXGUICodeEditor::RemoveSelection(const SelectionInfo& removeSelection)
 {
     std::erase_if(m_selections, [&removeSelection](const SelectionInfo& selection) { return removeSelection == selection; });
 }
 
-void NXTextEditor::ClearSelection()
+void NXGUICodeEditor::ClearSelection()
 {
     m_selections.clear();
 }
 
-void NXTextEditor::Enter(const std::vector<std::vector<std::string>>& strArray)
+void NXGUICodeEditor::Enter(const std::vector<std::vector<std::string>>& strArray)
 {
     // 按行列号顺序排序
     std::sort(m_selections.begin(), m_selections.end(), [](const SelectionInfo& a, const SelectionInfo& b) { return a.R < b.R; });
@@ -299,7 +363,7 @@ void NXTextEditor::Enter(const std::vector<std::vector<std::string>>& strArray)
     ScrollCheckForKeyEvent();
 }
 
-void NXTextEditor::Backspace(bool bDelete, bool bCtrl)
+void NXGUICodeEditor::Backspace(bool bDelete, bool bCtrl)
 {
     std::sort(m_selections.begin(), m_selections.end(), [](const SelectionInfo& a, const SelectionInfo& b) { return a.R < b.R; });
 
@@ -481,14 +545,14 @@ void NXTextEditor::Backspace(bool bDelete, bool bCtrl)
     ScrollCheckForKeyEvent();
 }
 
-void NXTextEditor::Escape()
+void NXGUICodeEditor::Escape()
 {
     // 按 Esc 后，仅保留最后的 Selection，其它的清除。
     auto lastSel = m_selections.back();
     m_selections.assign(1, lastSel);
 }
 
-void NXTextEditor::Copy()
+void NXGUICodeEditor::Copy()
 {
     std::vector<std::string> copyLines;
 
@@ -527,7 +591,7 @@ void NXTextEditor::Copy()
     ImGui::SetClipboardText(clipBoardText.c_str());
 }
 
-void NXTextEditor::Paste()
+void NXGUICodeEditor::Paste()
 {
     std::string clipText = ImGui::GetClipboardText();
     std::vector<std::string> lines;
@@ -543,12 +607,12 @@ void NXTextEditor::Paste()
     Enter({ lines });
 }
 
-void NXTextEditor::SelectAll()
+void NXGUICodeEditor::SelectAll()
 {
     m_selections.assign(1, { {0, 0}, {(int)m_lines.size() - 1, (int)m_lines.back().length()} });
 }
 
-void NXTextEditor::HighLightSyntax(int lineIndex)
+void NXGUICodeEditor::HighLightSyntax(int lineIndex)
 {
     TextString strLine = m_lines[lineIndex];
     std::vector<TextKeyword> strWords = ExtractKeywords(strLine);
@@ -600,7 +664,7 @@ void NXTextEditor::HighLightSyntax(int lineIndex)
     }
 }
 
-void NXTextEditor::SetLineUpdateTime(int lineIndex, double manualTime)
+void NXGUICodeEditor::SetLineUpdateTime(int lineIndex, double manualTime)
 {
     double time = manualTime == FLT_MIN ? ImGui::GetTime() : manualTime;
     if (m_lineUpdateTime.size() < m_lines.size())
@@ -608,7 +672,7 @@ void NXTextEditor::SetLineUpdateTime(int lineIndex, double manualTime)
     m_lineUpdateTime[lineIndex] = time;
 }
 
-void NXTextEditor::Render_MainLayer()
+void NXGUICodeEditor::Render_MainLayer()
 {
     const ImVec2& windowSize = ImGui::GetWindowSize();
     Render_OnMouseInputs();
@@ -637,7 +701,7 @@ void NXTextEditor::Render_MainLayer()
     ImGui::EndChild();
 }
 
-void NXTextEditor::Render_DebugLayer()
+void NXGUICodeEditor::Render_DebugLayer()
 {
     ImGui::SetCursorPos(ImVec2(ImGui::GetContentRegionAvail().x - 400.0f, 0.0f));
     ImGui::BeginChild("##debug_selections", ImVec2(350.0f, 0.0f), false, ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoNav);
@@ -663,7 +727,7 @@ void NXTextEditor::Render_DebugLayer()
     ImGui::EndChild();
 }
 
-void NXTextEditor::RenderSelections()
+void NXGUICodeEditor::RenderSelections()
 {
     for (const auto& selection : m_selections)
         RenderSelection(selection);
@@ -675,7 +739,7 @@ void NXTextEditor::RenderSelections()
     }
 }
 
-void NXTextEditor::RenderTexts()
+void NXGUICodeEditor::RenderTexts()
 {
     ImVec2 windowPos = ImGui::GetWindowPos();
     ImVec2 contextArea = ImGui::GetContentRegionAvail();
@@ -736,7 +800,7 @@ void NXTextEditor::RenderTexts()
     }
 }
 
-void NXTextEditor::RenderLineNumber()
+void NXGUICodeEditor::RenderLineNumber()
 {
     const ImVec2& windowPos = ImGui::GetWindowPos();
     const ImVec2& windowSize = ImGui::GetWindowSize();
@@ -756,7 +820,7 @@ void NXTextEditor::RenderLineNumber()
     }
 }
 
-void NXTextEditor::CalcLineNumberRectWidth()
+void NXGUICodeEditor::CalcLineNumberRectWidth()
 {
     int nLineNumberDigit = 0;
     for (int k = 1; k <= m_maxLineNumber; k *= 10) nLineNumberDigit++;
@@ -770,7 +834,7 @@ void NXTextEditor::CalcLineNumberRectWidth()
     m_lineTextStartX = m_lineNumberWidthWithPaddingX + paddingX;
 }
 
-void NXTextEditor::RenderSelection(const SelectionInfo& selection)
+void NXGUICodeEditor::RenderSelection(const SelectionInfo& selection)
 {
     const ImVec2& windowPos = ImGui::GetWindowPos();
     const auto& drawList = ImGui::GetWindowDrawList();
@@ -852,7 +916,7 @@ void NXTextEditor::RenderSelection(const SelectionInfo& selection)
         drawList->AddLine(flickerPos, ImVec2(flickerPos.x, flickerPos.y + m_charHeight), IM_COL32(255, 255, 0, 255), 1.0f);
 }
 
-void NXTextEditor::SelectionsOverlayCheckForMouseEvent(bool bIsDoubleClick)
+void NXGUICodeEditor::SelectionsOverlayCheckForMouseEvent(bool bIsDoubleClick)
 {
     // 检测的 m_selections 的所有元素（下面称为 selection）的覆盖范围是否和当前 { m_activeSelectionDown, m_activeSelectionMove } 重叠
     // 1. 如果 activeSelection 是当前 selection 的父集，则将 selection 删除
@@ -884,14 +948,14 @@ void NXTextEditor::SelectionsOverlayCheckForMouseEvent(bool bIsDoubleClick)
         });
 }
 
-void NXTextEditor::SelectionsOverlayCheckForKeyEvent(bool bFlickerAtFront)
+void NXGUICodeEditor::SelectionsOverlayCheckForKeyEvent(bool bFlickerAtFront)
 {
     // 检测键盘输入事件导致Selection发生变化以后是否相互重叠，
     // 如果两个 selection 重叠，合并成一个。重叠以后的 新selection 是否 flickerAtFront 由键盘事件的类型决定。
 
     m_overlaySelectCheck.clear();
     m_overlaySelectCheck.reserve(m_selections.size() * 2);
-    for (const auto& selection: m_selections)
+    for (const auto& selection : m_selections)
     {
         m_overlaySelectCheck.push_back({ selection.L, true, selection.flickerAtFront });
         m_overlaySelectCheck.push_back({ selection.R, false, selection.flickerAtFront });
@@ -944,7 +1008,7 @@ void NXTextEditor::SelectionsOverlayCheckForKeyEvent(bool bFlickerAtFront)
     }
 }
 
-void NXTextEditor::ScrollCheckForKeyEvent()
+void NXGUICodeEditor::ScrollCheckForKeyEvent()
 {
     // 此方法负责当屏幕外有 selection 选取变化时，跳转到该位置。
     // 2023.7.11 暂跳转到 m_selections.back() 所在的位置。
@@ -982,7 +1046,7 @@ void NXTextEditor::ScrollCheckForKeyEvent()
     }
 }
 
-int NXTextEditor::CalcSelectionLength(const SelectionInfo& selection)
+int NXGUICodeEditor::CalcSelectionLength(const SelectionInfo& selection)
 {
     const auto& L = selection.L;
     const auto& R = selection.R;
@@ -1007,7 +1071,7 @@ int NXTextEditor::CalcSelectionLength(const SelectionInfo& selection)
     }
 }
 
-void NXTextEditor::RenderTexts_OnMouseInputs()
+void NXGUICodeEditor::RenderTexts_OnMouseInputs()
 {
     if (!ImGui::IsWindowFocused())
         return;
@@ -1146,7 +1210,7 @@ void NXTextEditor::RenderTexts_OnMouseInputs()
     }
 }
 
-void NXTextEditor::Render_OnMouseInputs()
+void NXGUICodeEditor::Render_OnMouseInputs()
 {
     if (m_bIsSelecting && ImGui::IsMouseReleased(ImGuiMouseButton_Left))
     {
@@ -1155,7 +1219,7 @@ void NXTextEditor::Render_OnMouseInputs()
     }
 }
 
-void NXTextEditor::RenderTexts_OnKeyInputs()
+void NXGUICodeEditor::RenderTexts_OnKeyInputs()
 {
     ImGuiIO& io = ImGui::GetIO();
 	bool bAlt = io.KeyAlt;
@@ -1253,7 +1317,7 @@ void NXTextEditor::RenderTexts_OnKeyInputs()
                 auto c = static_cast<char>(wc);
                 if (wc >= 32 && wc < 127)
                 {
-                    Enter({{{c}}});
+                    Enter({ {{c}} });
                     //Enter({ {"If it looks like food,", "it is not good food", "--senpai810"}, {"114 514", "1919810", "feichangdexinxian", "SOGOKUOISHII", "Desu!"} });
                     m_bResetFlickerDt = true;
                 }
@@ -1262,7 +1326,7 @@ void NXTextEditor::RenderTexts_OnKeyInputs()
                     int tabSize = 4;
                     for (int i = 0; i < tabSize; ++i)
                     {
-                        Enter({{" "}});
+                        Enter({ {" "} });
                         m_bResetFlickerDt = true;
                     }
                 }
@@ -1273,7 +1337,7 @@ void NXTextEditor::RenderTexts_OnKeyInputs()
     }
 }
 
-void NXTextEditor::MoveUp(bool bShift, bool bPageUp, bool bCtrlHome)
+void NXGUICodeEditor::MoveUp(bool bShift, bool bPageUp, bool bCtrlHome)
 {
     for (auto& sel : m_selections)
     {
@@ -1301,7 +1365,7 @@ void NXTextEditor::MoveUp(bool bShift, bool bPageUp, bool bCtrlHome)
     ScrollCheckForKeyEvent();
 }
 
-void NXTextEditor::MoveDown(bool bShift, bool bPageDown, bool bCtrlEnd)
+void NXGUICodeEditor::MoveDown(bool bShift, bool bPageDown, bool bCtrlEnd)
 {
     for (auto& sel : m_selections)
     {
@@ -1329,21 +1393,21 @@ void NXTextEditor::MoveDown(bool bShift, bool bPageDown, bool bCtrlEnd)
     ScrollCheckForKeyEvent();
 }
 
-void NXTextEditor::MoveLeft(bool bShift, bool bCtrl, bool bHome, int size)
+void NXGUICodeEditor::MoveLeft(bool bShift, bool bCtrl, bool bHome, int size)
 {
     for (auto& sel : m_selections) MoveLeft(sel, bShift, bCtrl, bHome, size);
     SelectionsOverlayCheckForKeyEvent(true);
     ScrollCheckForKeyEvent();
 }
 
-void NXTextEditor::MoveRight(bool bShift, bool bCtrl, bool bEnd, int size)
+void NXGUICodeEditor::MoveRight(bool bShift, bool bCtrl, bool bEnd, int size)
 {
     for (auto& sel : m_selections) MoveRight(sel, bShift, bCtrl, bEnd, size);
     SelectionsOverlayCheckForKeyEvent(false);
     ScrollCheckForKeyEvent();
 }
 
-void NXTextEditor::MoveLeft(SelectionInfo& sel, bool bShift, bool bCtrl, bool bHome, int size)
+void NXGUICodeEditor::MoveLeft(SelectionInfo& sel, bool bShift, bool bCtrl, bool bHome, int size)
 {
     auto& pos = sel.flickerAtFront ? sel.L : sel.R;
     pos.col = std::min(pos.col, (int)m_lines[pos.row].size());
@@ -1390,7 +1454,7 @@ void NXTextEditor::MoveLeft(SelectionInfo& sel, bool bShift, bool bCtrl, bool bH
     }
 }
 
-void NXTextEditor::MoveRight(SelectionInfo& sel, bool bShift, bool bCtrl, bool bEnd, int size)
+void NXGUICodeEditor::MoveRight(SelectionInfo& sel, bool bShift, bool bCtrl, bool bEnd, int size)
 {
     auto& pos = sel.flickerAtFront ? sel.L : sel.R;
     pos.col = std::min(pos.col, (int)m_lines[pos.row].size());
@@ -1436,18 +1500,18 @@ void NXTextEditor::MoveRight(SelectionInfo& sel, bool bShift, bool bCtrl, bool b
     }
 }
 
-bool NXTextEditor::IsVariableChar(const char& ch)
+bool NXGUICodeEditor::IsVariableChar(const char& ch)
 {
     // ctrl+left/right 可以跳过的字符：
     return std::isalnum(ch) || ch == '_';
 }
 
-std::vector<NXTextEditor::TextKeyword> NXTextEditor::ExtractKeywords(const TextString& text)
+std::vector<NXGUICodeEditor::TextKeyword> NXGUICodeEditor::ExtractKeywords(const TextString& text)
 {
-    std::vector<NXTextEditor::TextKeyword> words;
+    std::vector<NXGUICodeEditor::TextKeyword> words;
     std::string word;
     int i;
-    for(i = 0; i < text.length(); i++)
+    for (i = 0; i < text.length(); i++)
     {
         const char& c = text[i];
         // 对于字母或数字的字符，将其添加到当前单词
