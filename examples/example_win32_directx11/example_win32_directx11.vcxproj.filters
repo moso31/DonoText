@@ -25,7 +25,7 @@
       <Filter>sources</Filter>
     </ClInclude>
     <ClInclude Include="..\..\TextEditor.h" />
-    <ClInclude Include="NXTextEditor.h" />
+    <ClInclude Include="NXGUICodeEditor.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\imgui.cpp">
@@ -53,7 +53,7 @@
       <Filter>imgui</Filter>
     </ClCompile>
     <ClCompile Include="..\..\TextEditor.cpp" />
-    <ClCompile Include="NXTextEditor.cpp" />
+    <ClCompile Include="NXGUICodeEditor.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\README.txt" />

@@ -8,7 +8,7 @@
 #include <d3d11.h>
 #include <tchar.h>
 #include "TextEditor.h"
-#include "NXTextEditor.h"
+#include "NXGUICodeEditor.h"
 
 // Data
 static ID3D11Device*            g_pd3dDevice = nullptr;
@@ -185,8 +185,14 @@ int main(int, char**)
         if (!bInit)
         {
             bInit = true;
-            std::filesystem::path path = "../../a.txt";
-            nxEditor.Load(path);
+            std::filesystem::path paths[] = {
+                "../../a.txt",
+                "../../linense.txt",
+                "../../imgui_demo.cpp"
+            };
+
+            for(const auto& p : paths)
+                nxEditor.Load(p);
         }
         nxEditor.Render(); 
 

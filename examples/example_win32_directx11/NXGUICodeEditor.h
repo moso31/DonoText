@@ -200,11 +200,20 @@ class NXGUICodeEditor
         int tokenColorIndex = -1;
     };
 
-    // 语法高亮关键词
-    static std::vector<std::vector<std::string>> const s_hlsl_tokens;
+    struct FileData
+    {
+        FileData() : isPathFile(false) {}
+        FileData(const std::filesystem::path& path) : path(path), isPathFile(true) {}
 
-    // 语法高亮关键词颜色
-    static std::vector<ImU32> s_hlsl_token_color;
+        std::vector<TextString> lines = { TextString("") };
+        std::vector<double> updateTime = { 0.0f };
+
+        bool SameAs(const std::filesystem::path& openedPath) const { return isPathFile && path == openedPath; }
+
+    private:
+        std::filesystem::path path;
+        bool isPathFile = false;
+    };
 
 public:
     NXGUICodeEditor(ImFont* pFont);
@@ -213,7 +222,7 @@ public:
     void Load(const std::filesystem::path& filePath);
     void Load(const std::string& text);
     void Render();
-    std::string Text();
+    std::string Text(int index);
 
     void AddSelection(const Coordinate& A, const Coordinate& B);
     void RemoveSelection(const SelectionInfo& removeSelection);
@@ -227,8 +236,9 @@ public:
     void Paste();
     void SelectAll();
 
-    void HighLightSyntax(int lineIndex);
-    void SetLineUpdateTime(int lineIndex, double manualTime = FLT_MIN);
+    void HighLightSyntax(int fileIndex, int lineIndex);
+    void SetLineUpdateTime(int fileIndex, int lineIndex, double manualTime = FLT_MIN);
+    void SwitchFile(int fileIndex);
 
 private:
     void Render_MainLayer();
@@ -265,7 +275,18 @@ private:
     std::vector<TextKeyword> ExtractKeywords(const TextString& text);
 
 private:
-    std::vector<TextString> m_lines = { TextString("") };
+    // 语法高亮关键词
+    static std::vector<std::vector<std::string>> const s_hlsl_tokens;
+
+    // 语法高亮关键词颜色
+    static std::vector<ImU32> s_hlsl_token_color;
+
+private:
+    // 所有文本信息
+    std::vector<FileData> m_textFiles;
+
+    // 记录当前被渲染的是哪个文本
+    int m_pickingIndex = 0;
 
 private:
     // 记录行号文本能达到的最大宽度
@@ -307,10 +328,9 @@ private:
     // 使用的字体（最好为此TextEditor单独设置一个字体）
     ImFont* m_pFont;
 
-    // 记录每行的更新时间，避免异步覆盖
-    std::vector<double> m_lineUpdateTime;
-
     // 2023.7.18 使用线程池优化高亮逻辑
     // 当进行较多行的复制操作时，异步处理高亮
     NXGUICodeEditor::ThreadPool m_threadPool;
+
+    bool m_enableTabItems = false;
 };

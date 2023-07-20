@@ -157,7 +157,7 @@
     <ClInclude Include="..\..\backends\imgui_impl_dx11.h" />
     <ClInclude Include="..\..\backends\imgui_impl_win32.h" />
     <ClInclude Include="..\..\TextEditor.h" />
-    <ClInclude Include="NXTextEditor.h" />
+    <ClInclude Include="NXGUICodeEditor.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\imgui.cpp" />
@@ -169,7 +169,7 @@
     <ClCompile Include="..\..\backends\imgui_impl_win32.cpp" />
     <ClCompile Include="..\..\TextEditor.cpp" />
     <ClCompile Include="main.cpp" />
-    <ClCompile Include="NXTextEditor.cpp" />
+    <ClCompile Include="NXGUICodeEditor.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\misc\debuggers\imgui.natstepfilter" />
