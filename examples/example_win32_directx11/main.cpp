@@ -191,8 +191,15 @@ int main(int, char**)
                 "../../imgui_demo.cpp"
             };
 
-            for(const auto& p : paths)
-                nxEditor.Load(p);
+            // 在批量创建多个文件（比如1, 2, 3）时，正确的做法应该是：
+            // load1-load2-load3-refresh1-refresh2-refresh3.
+            // 因为每次调用Load方法时都会清空线程池，所以这种做法可能导致文件1, 2的高亮缺失。
+            // 而不是：load1-refresh1-load2-refresh2-load3-refresh3.
+            // correct: 
+            for(const auto& p : paths) nxEditor.Load(p, false);
+            nxEditor.RefreshAllHighLights();
+            // instead of:
+            // for(const auto& p : paths) nxEditor.Load(p, true); [DONT USE THIS LINE] 
         }
         nxEditor.Render(); 
 

@@ -55,7 +55,7 @@ class NXGUICodeEditor
             }
         }
 
-        void AddTaskFunc(std::function<void()> func)
+        void Add(std::function<void()> func)
         {
             if (m_bShutdown) return;
             {
@@ -65,7 +65,7 @@ class NXGUICodeEditor
             m_condition.notify_one();
         }
 
-        void ClearTaskFunc()
+        void Clear()
         {
             if (m_bShutdown) return;
             {
@@ -219,8 +219,9 @@ public:
     NXGUICodeEditor(ImFont* pFont);
     ~NXGUICodeEditor() {}
 
-    void Load(const std::filesystem::path& filePath);
-    void Load(const std::string& text);
+    void Load(const std::filesystem::path& filePath, bool bRefreshHighLight = false);
+    void Load(const std::string& text, bool bRefreshHighLight = false);
+    void RefreshAllHighLights();
     void Render();
     std::string Text(int index);
 

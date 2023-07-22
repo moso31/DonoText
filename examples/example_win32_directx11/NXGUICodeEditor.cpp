@@ -44,7 +44,7 @@ NXGUICodeEditor::NXGUICodeEditor(ImFont* pFont) :
     CalcLineNumberRectWidth();
 }
 
-void NXGUICodeEditor::Load(const std::filesystem::path& filePath)
+void NXGUICodeEditor::Load(const std::filesystem::path& filePath, bool bRefreshHighLight)
 {
     // 逐行读取某个文件的文本信息 
     std::ifstream ifs(filePath);
@@ -63,7 +63,7 @@ void NXGUICodeEditor::Load(const std::filesystem::path& filePath)
 
     // 必须清空线程池！因为 m_textFiles.emplace_back() 可能会导致内存地址变更。
     // 若不清空，此时线程池task()就会继续修改m_textFiles之前指向的内存，导致未定义的行为。
-    m_threadPool.ClearTaskFunc();
+    m_threadPool.Clear();
 
     // 将新打开的文件加入到 m_textFiles 中
     FileData& newFile = m_textFiles.emplace_back(FileData(filePath));
@@ -86,18 +86,21 @@ void NXGUICodeEditor::Load(const std::filesystem::path& filePath)
         lines.push_back(line);
     }
 
-    // 初始化每行的更新时间
-    newFile.updateTime.assign(lines.size(), ImGui::GetTime());
+    if (bRefreshHighLight)
+    {
+        // 初始化每行的更新时间
+        newFile.updateTime.assign(lines.size(), ImGui::GetTime());
 
-    // 异步高亮语法
-    int fileIndex = (int)m_textFiles.size() - 1;
-    for (int i = 0; i < lines.size(); i++)
-        m_threadPool.AddTaskFunc([this, fileIndex, i]() { HighLightSyntax(fileIndex, i); });
+        // 异步高亮语法
+        int fileIndex = (int)m_textFiles.size() - 1;
+        for (int i = 0; i < lines.size(); i++)
+            m_threadPool.Add([this, fileIndex, i]() { HighLightSyntax(fileIndex, i); });
+    }
 
     ifs.close();
 }
 
-void NXGUICodeEditor::Load(const std::string& text)
+void NXGUICodeEditor::Load(const std::string& text, bool bRefreshHighLight)
 {
     // 如果不是来自硬盘的文件，无需查重直接创建
     FileData& newFile = m_textFiles.emplace_back(text);
@@ -108,7 +111,7 @@ void NXGUICodeEditor::Load(const std::string& text)
 
     // 必须清空线程池！因为 m_textFiles.emplace_back() 可能会导致内存地址变更。
     // 若不清空，此时线程池task()就会继续修改m_textFiles之前指向的内存，导致未定义的行为。
-    m_threadPool.ClearTaskFunc();
+    m_threadPool.Clear();
 
     lines.clear();
 
@@ -148,13 +151,38 @@ void NXGUICodeEditor::Load(const std::string& text)
     }
     lines.push_back(line);
 
-    // 初始化每行的更新时间
-    newFile.updateTime.assign(lines.size(), ImGui::GetTime());
+    if (bRefreshHighLight)
+    {
+        // 初始化每行的更新时间
+        newFile.updateTime.assign(lines.size(), ImGui::GetTime());
 
-    // 异步高亮语法
-    int fileIndex = (int)m_textFiles.size() - 1;
-    for (int i = 0; i < lines.size(); i++)
-        m_threadPool.AddTaskFunc([this, fileIndex, i]() { HighLightSyntax(fileIndex, i); });
+        // 异步高亮语法
+        int fileIndex = (int)m_textFiles.size() - 1;
+        for (int i = 0; i < lines.size(); i++)
+            m_threadPool.Add([this, fileIndex, i]() { HighLightSyntax(fileIndex, i); });
+    }
+}
+
+void NXGUICodeEditor::RefreshAllHighLights()
+{
+    for (int i = 0; i < m_textFiles.size(); i++)
+    {
+        auto& file = m_textFiles[i];
+        auto& lines = file.lines;
+
+        // 初始化每行的更新时间
+        file.updateTime.assign(lines.size(), ImGui::GetTime());
+    }
+
+    for (int i = 0; i < m_textFiles.size(); i++)
+    {
+        auto& file = m_textFiles[i];
+        auto& lines = file.lines;
+
+        // 异步高亮语法
+        for (int j = 0; j < file.lines.size(); j++)
+            m_threadPool.Add([this, i, j]() { HighLightSyntax(i, j); });
+    }
 }
 
 void NXGUICodeEditor::Render()
@@ -382,7 +410,7 @@ void NXGUICodeEditor::Enter(const std::vector<std::vector<std::string>>& strArra
                 if (allLineIdx <= 2)
                     HighLightSyntax(m_pickingIndex, L.row + allLineIdx);
                 else
-                    m_threadPool.AddTaskFunc([this, L, allLineIdx]() { HighLightSyntax(m_pickingIndex, L.row + allLineIdx); });
+                    m_threadPool.Add([this, L, allLineIdx]() { HighLightSyntax(m_pickingIndex, L.row + allLineIdx); });
             }
         }
 
