@@ -202,8 +202,8 @@ class NXGUICodeEditor
 
     struct FileData
     {
-        FileData() : isPathFile(false), id(++currentId) {}
-        FileData(const std::filesystem::path& path) : path(path), isPathFile(true), id(++currentId) {}
+        FileData() : isPathFile(false), id(++IDCounter) {}
+        FileData(const std::filesystem::path& path) : path(path), isPathFile(true), id(++IDCounter) {}
 
         std::vector<TextString> lines = { TextString("") };
         std::vector<double> updateTime = { 0.0f };
@@ -214,10 +214,10 @@ class NXGUICodeEditor
         const int GetId() const { return id; }
 
     private:
-        static int currentId;
-        std::filesystem::path path;
-        bool isPathFile = false;
-        int id;
+        static int IDCounter;       // 用于给每个 FileData 分配唯一的 id
+        std::filesystem::path path; // 文件的磁盘存储路径（如果是从磁盘加载）
+        bool isPathFile = false;    // true：从磁盘加载；false：新建文本
+        int id;                     // 当前 FileData 的 id
     };
 
 public:

@@ -1,6 +1,6 @@
 ﻿#include "NXGUICodeEditor.h"
 
-int NXGUICodeEditor::FileData::currentId = 0;
+int NXGUICodeEditor::FileData::IDCounter = 0;
 
 // static variables
 std::vector<std::vector<std::string>> const NXGUICodeEditor::s_hlsl_tokens =
@@ -217,11 +217,11 @@ void NXGUICodeEditor::Render()
     if (m_enableTabItems)
     {
         static int path_id = 0;
-        auto tab_bar_flags = ImGuiTabBarFlags_Reorderable;
-        if (ImGui::BeginTabBar("MyTabBar", tab_bar_flags))
+        if (ImGui::BeginTabBar("MyTabBar", ImGuiTabBarFlags_Reorderable))
         {
             if (ImGui::TabItemButton("+", ImGuiTabItemFlags_Trailing | ImGuiTabItemFlags_NoTooltip))
             {
+                // add new temp textfile
                 Load(std::string(""), true); 
             }
 
@@ -234,7 +234,7 @@ void NXGUICodeEditor::Render()
                 ImGui::PushID(file.GetId());
                 if (ImGui::BeginTabItem(fileName.c_str(), &bOpen, ImGuiTabItemFlags_None))
                 {
-                    m_pickingIndex = i;
+                    SwitchFile(i);
                     ImGui::EndTabItem();
                 }
                 ImGui::PopID();
@@ -243,7 +243,7 @@ void NXGUICodeEditor::Render()
                 {
                     m_textFiles.erase(m_textFiles.begin() + i);
                     if (m_pickingIndex >= (int)m_textFiles.size())
-                        m_pickingIndex = (int)m_textFiles.size() - 1;
+                        SwitchFile((int)m_textFiles.size() - 1);
                 }
                 else i++;
             }
@@ -772,6 +772,9 @@ void NXGUICodeEditor::SetLineUpdateTime(int fileIndex, int lineIndex, double man
 
 void NXGUICodeEditor::SwitchFile(int fileIndex)
 {
+    if (m_pickingIndex == fileIndex)
+        return;
+
     m_pickingIndex = fileIndex;
 
     m_bIsSelecting = false;
