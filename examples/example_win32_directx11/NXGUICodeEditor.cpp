@@ -1,6 +1,6 @@
 ﻿#include "NXGUICodeEditor.h"
 
-#define YEAH_RAINBOW
+int NXGUICodeEditor::FileData::currentId = 0;
 
 // static variables
 std::vector<std::vector<std::string>> const NXGUICodeEditor::s_hlsl_tokens =
@@ -103,7 +103,7 @@ void NXGUICodeEditor::Load(const std::filesystem::path& filePath, bool bRefreshH
 void NXGUICodeEditor::Load(const std::string& text, bool bRefreshHighLight)
 {
     // 如果不是来自硬盘的文件，无需查重直接创建
-    FileData& newFile = m_textFiles.emplace_back(text);
+    FileData& newFile = m_textFiles.emplace_back();
     auto& lines = newFile.lines;
 
     m_bIsSelecting = false;
@@ -177,7 +177,6 @@ void NXGUICodeEditor::RefreshAllHighLights()
     for (int i = 0; i < m_textFiles.size(); i++)
     {
         auto& file = m_textFiles[i];
-        auto& lines = file.lines;
 
         // 异步高亮语法
         for (int j = 0; j < file.lines.size(); j++)
@@ -217,34 +216,36 @@ void NXGUICodeEditor::Render()
 
     if (m_enableTabItems)
     {
-        static ImVector<int> active_tabs;
-        static int next_tab_id = 0;
-        if (next_tab_id == 0) // Initialize with some default tabs
-            for (int i = 0; i < 3; i++)
-                active_tabs.push_back(next_tab_id++);
-
+        static int path_id = 0;
         auto tab_bar_flags = ImGuiTabBarFlags_Reorderable;
         if (ImGui::BeginTabBar("MyTabBar", tab_bar_flags))
         {
             if (ImGui::TabItemButton("+", ImGuiTabItemFlags_Trailing | ImGuiTabItemFlags_NoTooltip))
-                active_tabs.push_back(next_tab_id++); // Add new tab
-
-            // Submit our regular tabs
-            for (int n = 0; n < active_tabs.Size; )
             {
-                bool open = true;
-                char name[16];
-                snprintf(name, IM_ARRAYSIZE(name), "%04d", active_tabs[n]);
-                if (ImGui::BeginTabItem(name, &open, ImGuiTabItemFlags_None))
+                Load(std::string(""), true); 
+            }
+
+            for (int i = 0; i < (int)m_textFiles.size();)
+            {
+                bool bOpen = true;
+                const auto& file = m_textFiles[i];
+                std::string fileName = file.Name();
+
+                ImGui::PushID(file.GetId());
+                if (ImGui::BeginTabItem(fileName.c_str(), &bOpen, ImGuiTabItemFlags_None))
                 {
-                    ImGui::Text("This is the %s tab!", name);
+                    m_pickingIndex = i;
                     ImGui::EndTabItem();
                 }
+                ImGui::PopID();
 
-                if (!open)
-                    active_tabs.erase(active_tabs.Data + n);
-                else
-                    n++;
+                if (!bOpen)
+                {
+                    m_textFiles.erase(m_textFiles.begin() + i);
+                    if (m_pickingIndex >= (int)m_textFiles.size())
+                        m_pickingIndex = (int)m_textFiles.size() - 1;
+                }
+                else i++;
             }
             ImGui::EndTabBar();
         }
@@ -708,8 +709,6 @@ void NXGUICodeEditor::SelectAll()
 void NXGUICodeEditor::HighLightSyntax(int fileIndex, int lineIndex)
 {
     auto& lines = m_textFiles[fileIndex].lines;
-    if (lines.size() == 0)
-        int x = 0;
     TextString strLine = lines[lineIndex];
     std::vector<TextKeyword> strWords = ExtractKeywords(strLine);
     for (auto& strWord : strWords)
@@ -1636,7 +1635,7 @@ std::vector<NXGUICodeEditor::TextKeyword> NXGUICodeEditor::ExtractKeywords(const
     int i;
     for (i = 0; i < text.length(); i++)
     {
-        const char& c = text[i];
+        const unsigned char& c = text[i];
         // 对于字母或数字的字符，将其添加到当前单词
         if (std::isalnum(c) || c == '_') word += c;
         else if (!word.empty())

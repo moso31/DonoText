@@ -202,17 +202,22 @@ class NXGUICodeEditor
 
     struct FileData
     {
-        FileData() : isPathFile(false) {}
-        FileData(const std::filesystem::path& path) : path(path), isPathFile(true) {}
+        FileData() : isPathFile(false), id(++currentId) {}
+        FileData(const std::filesystem::path& path) : path(path), isPathFile(true), id(++currentId) {}
 
         std::vector<TextString> lines = { TextString("") };
         std::vector<double> updateTime = { 0.0f };
 
-        bool SameAs(const std::filesystem::path& openedPath) const { return isPathFile && path == openedPath; }
+        const bool SameAs(const std::filesystem::path& openedPath) const { return isPathFile && path == openedPath; }
+        const bool IsPathFile() const { return isPathFile; }
+        const std::string Name() const { return isPathFile ? path.filename().string() : "New File"; }
+        const int GetId() const { return id; }
 
     private:
+        static int currentId;
         std::filesystem::path path;
         bool isPathFile = false;
+        int id;
     };
 
 public:
