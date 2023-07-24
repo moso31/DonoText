@@ -36,6 +36,8 @@ Major defects:
 - Do not support double byte, all double byte characters entered will be replaced with '?'
 - Does not provide optimized data structures, handling text above 10k lines may be slow.
 
+## Preview
+
 ![image](https://github.com/moso31/DonoText/assets/15684115/9c65ccf1-1045-4f5b-a3c2-19f8ab24ce44)
 
 ![image](https://github.com/moso31/DonoText/assets/15684115/6ae49ef4-80b8-4a05-9385-742c26270c1b)
