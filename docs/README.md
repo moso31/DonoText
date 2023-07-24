@@ -38,6 +38,10 @@ Major defects:
 
 ## Preview
 
+![image](https://github.com/moso31/DonoText/assets/15684115/438eaff3-5d4b-481f-9223-a199f0bcf65f)
+
+![image](https://github.com/moso31/DonoText/assets/15684115/00197e52-4f81-4232-bf0c-99ab81d584fd)
+
 ![image](https://github.com/moso31/DonoText/assets/15684115/9c65ccf1-1045-4f5b-a3c2-19f8ab24ce44)
 
 ![image](https://github.com/moso31/DonoText/assets/15684115/6ae49ef4-80b8-4a05-9385-742c26270c1b)
